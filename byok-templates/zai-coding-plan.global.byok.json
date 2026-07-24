@@ -1,0 +1,10 @@
+{
+	"name": "zai-coding-plan-global",
+	"displayName": "Z.ai GLM Coding Plan (Global)",
+	"description": "Z.ai GLM Coding Plan — 5 GLM models via OpenAI-compatible API. Global endpoint for users outside China.",
+	"keyUrl": "https://z.ai/manage-apikey/apikey-list",
+	"keyInstructions": "Subscribe to the GLM Coding Plan at https://z.ai/subscribe, then create an API key at https://z.ai/manage-apikey/apikey-list.",
+	"keyCount": 1,
+	"keyLabels": ["Z.ai API Key"],
+	"chatLanguageModelsFile": "zai-coding-plan.global.single.chatLanguageModels.json"
+}

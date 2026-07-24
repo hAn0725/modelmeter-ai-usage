@@ -45,6 +45,10 @@ Pre-configured `chatLanguageModels.json` templates for popular AI providers. Cop
 | **Mistral** | [`mistral.chatLanguageModels.json`](byok-templates/mistral.chatLanguageModels.json) | Mistral API — Mistral Large, Codestral | [Get key](https://console.mistral.ai/api-keys/) |
 | **OpenRouter** | [`openrouter.chatLanguageModels.json`](byok-templates/openrouter.chatLanguageModels.json) | Access 200+ models via a single API | [Get key](https://openrouter.ai/keys) |
 | **BytePlus** | [single](byok-templates/byteplus.single.chatLanguageModels.json) · [multi](byok-templates/byteplus.multi.chatLanguageModels.json) | BytePlus Coding Plan — 8 models via OpenAI-compatible API | [Get key](https://console.byteplus.com) |
+| **Z.ai (Global)** | [single](byok-templates/zai-coding-plan.global.single.chatLanguageModels.json) · [multi](byok-templates/zai-coding-plan.global.multi.chatLanguageModels.json) | GLM Coding Plan — 5 GLM models via OpenAI-compatible API | [Get key](https://z.ai/manage-apikey/apikey-list) |
+| **Z.ai (CN)** | [single](byok-templates/zai-coding-plan.cn.single.chatLanguageModels.json) · [multi](byok-templates/zai-coding-plan.cn.multi.chatLanguageModels.json) | GLM Coding Plan (CN) — 5 GLM models via bigmodel.cn endpoint | [Get key](https://bigmodel.cn/usercenter/apikeys) |
+| **Kimi** | [single](byok-templates/kimi-coding-plan.single.chatLanguageModels.json) · [multi](byok-templates/kimi-coding-plan.multi.chatLanguageModels.json) | Kimi Coding Plan — 5 models via OpenAI-compatible API | [Get key](https://platform.kimi.com/console/api-keys) |
+| **Baidu Token Plan (CN)** | [single](byok-templates/baidu-token-plan.cn.single.chatLanguageModels.json) · [multi](byok-templates/baidu-token-plan.cn.multi.chatLanguageModels.json) | Baidu Token Plan — 6 models (ERNIE, GLM, DeepSeek, Kimi) via OpenAI-compatible API | [Get key](https://console.bce.baidu.com/qianfan/resource/token-plan) |
 
 ### How to Use Manually
 

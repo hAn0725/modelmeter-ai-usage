@@ -106,8 +106,58 @@
 						{ "id": "llm-gateway-pro", "name": "LLM Gateway Pro", "price": "$79/mo", "quota": "$237/mo in model usage (3x value)", "features": ["200+ models", "Full-day agent runs"], "url": "https://llmgateway.ai" },
 						{ "id": "llm-gateway-max", "name": "LLM Gateway Max", "price": "$179/mo", "quota": "$537/mo in model usage (3x value)", "features": ["200+ models", "Non-stop heavy sessions"], "url": "https://llmgateway.ai" },
 						{ "id": "hugging-face-pro", "name": "Hugging Face Pro", "price": "$9/mo", "quota": "20x inference usage", "features": ["All HF models"], "url": "https://huggingface.co/pricing" },
-						{ "id": "baidu-cloud-lite", "name": "Baidu Cloud Lite", "price": "¥40/mo (~$5.50)", "quota": "18,000 req/mo", "features": ["Multi-model"], "url": "https://cloud.baidu.com" },
-						{ "id": "baidu-cloud-pro", "name": "Baidu Cloud Pro", "price": "¥200/mo (~$27.50)", "quota": "90,000 req/mo", "features": ["Multi-model"], "url": "https://cloud.baidu.com" },
+						{
+							"id": "baidu-token-plan-mini",
+							"name": "Baidu Token Plan Mini",
+							"price": "¥4.9/mo (first, 50% off)",
+							"quota": "10M tokens/mo",
+							"features": [
+								"Token Plan 个人版",
+								"ERNIE 5.1 + GLM + DeepSeek + Kimi",
+								"OpenAI & Anthropic compatible",
+								"CN only"
+							],
+							"url": "https://cloud.baidu.com/product/codingplan.html"
+						},
+						{
+							"id": "baidu-token-plan-lite",
+							"name": "Baidu Token Plan Lite",
+							"price": "¥19.9/mo (first, 50% off)",
+							"quota": "42M tokens/mo",
+							"features": [
+								"Token Plan 个人版",
+								"ERNIE 5.1 + GLM + DeepSeek + Kimi",
+								"OpenAI & Anthropic compatible",
+								"CN only"
+							],
+							"url": "https://cloud.baidu.com/product/codingplan.html"
+						},
+						{
+							"id": "baidu-token-plan-pro",
+							"name": "Baidu Token Plan Pro",
+							"price": "¥99.9/mo (first, 50% off)",
+							"quota": "230M tokens/mo",
+							"features": [
+								"Token Plan 个人版",
+								"5x Lite quota",
+								"ERNIE 5.1 + GLM + DeepSeek + Kimi",
+								"CN only"
+							],
+							"url": "https://cloud.baidu.com/product/codingplan.html"
+						},
+						{
+							"id": "baidu-token-plan-max",
+							"name": "Baidu Token Plan Max",
+							"price": "¥299.9/mo (first, 50% off)",
+							"quota": "700M tokens/mo",
+							"features": [
+								"Token Plan 个人版",
+								"16x Lite quota",
+								"ERNIE 5.1 + GLM + DeepSeek + Kimi",
+								"CN only"
+							],
+							"url": "https://cloud.baidu.com/product/codingplan.html"
+						},
 						{ "id": "ollama-cloud-pro", "name": "Ollama Cloud Pro", "price": "$20/mo", "quota": "50x Starter usage", "features": ["All Ollama models"], "url": "https://ollama.com" },
 						{ "id": "ollama-cloud-max", "name": "Ollama Cloud Max", "price": "$100/mo", "quota": "5x Pro usage", "features": ["All Ollama models"], "url": "https://ollama.com" },
 						{ "id": "cerebras-pro", "name": "Cerebras Pro", "price": "$50/mo", "quota": "24M tokens/day", "features": ["Cerebras models"], "url": "https://cerebras.ai" },

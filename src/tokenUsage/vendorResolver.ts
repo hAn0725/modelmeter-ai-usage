@@ -19,6 +19,8 @@ function heuristicInferVendor(model: string): string | undefined {
 	if (lower.includes('gemini')) { return 'google'; }
 	if (lower.includes('deepseek')) { return 'deepseek'; }
 	if (lower.includes('glm')) { return 'zhipu'; }
+	if (lower.includes('kimi') || lower.includes('moonshot')) { return 'moonshot'; }
+	if (lower.includes('ernie')) { return 'baidu'; }
 	if (lower.startsWith('copilot/')) { return 'copilot'; }
 	return undefined;
 }

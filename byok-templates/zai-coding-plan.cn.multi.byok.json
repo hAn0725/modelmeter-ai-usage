@@ -1,0 +1,10 @@
+{
+	"name": "zai-coding-plan-cn-multi",
+	"displayName": "Z.ai GLM Coding Plan (CN, multi-key)",
+	"description": "Z.ai GLM Coding Plan (CN) with multiple API keys for load distribution. Each account gets its own group. Uses the bigmodel.cn endpoint.",
+	"keyUrl": "https://bigmodel.cn/usercenter/apikeys",
+	"keyInstructions": "Subscribe to the GLM Coding Plan and create API keys at the 智谱开放平台 (https://bigmodel.cn). For each account, provide the key when prompted. Keys are stored separately in VS Code's keystore.",
+	"keyCount": 3,
+	"keyLabels": ["Account 1", "Account 2", "Account 3"],
+	"chatLanguageModelsFile": "zai-coding-plan.cn.multi.chatLanguageModels.json"
+}

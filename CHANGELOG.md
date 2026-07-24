@@ -4,7 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### 📣 Marketplace Metadata
+### � BYOK Provider Templates
+
+- **Z.ai GLM Coding Plan** — New templates for Z.ai Global (`api.z.ai`) and Z.ai CN (`open.bigmodel.cn`), each in single-key and multi-key variants. 5 GLM models (GLM-5.2, 5.1, 5, 5-Turbo, 4.7) via OpenAI-compatible API
+- **Kimi Coding Plan** — New templates for Kimi/Moonshot in single-key and multi-key variants. 5 models (Kimi K3, K2.7 Code, K2.7 Code Highspeed, K2.6, K2.5) via `api.kimi.com/coding/v1`
+- **Baidu Token Plan (CN)** — New templates for Baidu Qianfan Token Plan 个人版 in single-key and multi-key variants. 6 models (ERNIE 5.1, GLM-5.2, GLM-5.1, DeepSeek-V4-Pro, DeepSeek-V4-Flash, Kimi-K2.6) via `qianfan.baidubce.com`
+
+### 📊 Vendor Resolution & Dashboards
+
+- **New vendor heuristics** — `kimi`/`moonshot` → `moonshot` and `ernie` → `baidu` in the vendor resolver for correct attribution of unprefixed model names
+- **Dashboard vendor colors** — Added `moonshot` (teal) and `baidu` (red) to the color palette across the overview, vendor, and model dashboards
+- **ERNIE 5.1 pricing & energy** — Added Baidu's ERNIE 5.1 to `pricing.json` (v1.4.0) and the energy estimate table
+
+### 📚 Directory & Documentation
+
+- **Baidu Token Plan directory entries** — Replaced the outdated "Baidu Cloud Lite/Pro" entries with all four Token Plan tiers (Mini/Lite/Pro/Max)
+- **README template links** — Added Z.ai (Global/CN), Kimi, and Baidu rows to the BYOK templates table in `README.md` and the file listing in `byok-templates/README.md`
+- **Updated provider count** — Extension README now reflects 13+ pre-configured providers
+
+### �📣 Marketplace Metadata
 
 - **Rebranded `displayName`/`description`** to lead with the extension's real differentiators — BYOK usage tracking, key management, and session history/analysis — matching the branding already used in `EXTENSION_README.md` and the repo README (`Copilot & BYOK Usage Tracker`). Extension `name`/id is unchanged.
 - **Expanded `keywords`** with feature-intent terms (usage tracking, session history, session analysis, credits, dashboard, key management, etc.) and provider names (DeepSeek, Mistral, OpenRouter, Qwen, Kimi, GLM/Z.ai, MiniMax, MiMo, and more) so the extension surfaces for provider-specific searches like "deepseek byok" or "kimi usage tracking".

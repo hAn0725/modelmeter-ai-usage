@@ -1,6 +1,6 @@
 {
-	"version": "1.3.0",
-	"lastUpdated": "2026-07-18",
+	"version": "1.4.0",
+	"lastUpdated": "2026-07-25",
 	"description": "Per-model pricing lookup table for cost estimation. All prices in USD per 1M tokens. Sources: providerUrl for direct API pricing; copilotUrl for GitHub Copilot pricing if different.",
 	"opencodeGo": {
 		"name": "OpenCode Go",
@@ -382,6 +382,19 @@
 			"copilotUrl": null,
 			"pricing": { "input": 0.90, "output": 3.75, "cacheHit": 0.16 },
 			"opencodeGo": { "monthlyCap": 60.00, "monthlyEstRequests": 5750 }
+		},
+		{
+			"id": "ernie-5.1",
+			"name": "ERNIE 5.1",
+			"provider": "Baidu (ERNIE)",
+			"providerUrl": "https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6",
+			"copilotUrl": null,
+			"contextWindow": 128000,
+			"pricing": {
+				"input": 0.80,
+				"output": 3.20
+			},
+			"note": "Baidu flagship. Available via Baidu Token Plan (unified token pool, no per-model pricing); price here is a pay-as-you-go estimate."
 		},
 		{
 			"id": "qwen3.7-max",

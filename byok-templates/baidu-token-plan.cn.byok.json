@@ -1,0 +1,10 @@
+{
+	"name": "baidu-token-plan-cn",
+	"displayName": "Baidu Token Plan (CN)",
+	"description": "Baidu Qianfan Token Plan 个人版 — 6 models (ERNIE, GLM, DeepSeek, Kimi) via OpenAI-compatible API. CN only.",
+	"keyUrl": "https://console.bce.baidu.com/qianfan/resource/token-plan",
+	"keyInstructions": "Subscribe to Baidu Token Plan 个人版 at https://cloud.baidu.com/product/codingplan.html, then get your dedicated API key at https://console.bce.baidu.com/qianfan/resource/token-plan.",
+	"keyCount": 1,
+	"keyLabels": ["Baidu Token Plan API Key"],
+	"chatLanguageModelsFile": "baidu-token-plan.cn.single.chatLanguageModels.json"
+}
