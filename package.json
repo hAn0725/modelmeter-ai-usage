@@ -1,7 +1,7 @@
 {
 	"name": "copilot-alternatives",
 	"displayName": "Copilot & BYOK Usage Tracker",
-	"description": "BYOK usage tracking, cost dashboard, and session analysis for GitHub Copilot & BYOK (DeepSeek, Mistral, OpenRouter, Qwen, Kimi, GLM/Z.ai, MiniMax, MiMo). Manage providers visually; browse 100+ AI coding tools.",
+	"description": "BYOK usage tracking, cost dashboard, and session analysis for GitHub Copilot & BYOK (DeepSeek, Mistral, OpenRouter, Qwen, Kimi K3, GLM/Z.ai, MiniMax, MiMo). Manage providers visually; browse 100+ AI coding tools.",
 	"version": "0.1.9",
 	"publisher": "feima",
 	"license": "MIT",
