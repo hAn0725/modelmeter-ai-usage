@@ -67,14 +67,21 @@
 		"byteplus",
 		"qwen",
 		"alibaba",
-		"kimi",
+		"kimi k3",
 		"moonshot",
 		"z.ai",
 		"glm",
 		"zhipu",
 		"mimo",
 		"xiaomi",
-		"minimax"
+		"minimax",
+		"clinepass",
+		"opencode go",
+		"ollama cloud",
+		"cloudflare",
+		"cloudflare ai gateway",
+		"command code",
+		"groq"
 	],
 	"repository": {
 		"type": "git",

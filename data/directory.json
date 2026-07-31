@@ -85,11 +85,12 @@
 						{ "id": "nous-portal-super", "name": "Nous Portal Super", "price": "$100/mo", "quota": "$110 monthly credits, $50 rollover cap", "features": ["300+ models", "hosted tool usage"], "url": "https://nousresearch.com" },
 						{ "id": "nous-portal-ultra", "name": "Nous Portal Ultra", "price": "$200/mo", "quota": "$220 monthly credits, $100 rollover cap", "features": ["300+ models", "hosted tool usage"], "url": "https://nousresearch.com" },
 						{ "id": "opencode-go", "name": "OpenCode Go", "price": "$5 first mo, then $10/mo", "quota": "Multi-model usage-based", "features": ["Multi-model (GLM, Qwen, Kimi, MiMo, DeepSeek, MiniMax)", "OpenCode's native subscription"], "url": "https://opencode.ai" },
-						{ "id": "clinepass", "name": "ClinePass", "price": "$4.99 first mo, then $9.99/mo", "quota": "2-5x standard API rate limits", "features": ["Built for Cline IDE & CLI", "also usable with other coding agents via API key"], "models": ["GLM 5.2", "Kimi K2.7 Code", "Kimi K2.6", "DeepSeek V4 Pro", "DeepSeek V4 Flash", "MiniMax M3", "MiMo V2.5 Pro", "MiMo V2.5", "Qwen3.7-Max", "Qwen3.7-Plus"], "url": "https://cline.bot/cline-pass" },
+						{ "id": "clinepass", "name": "ClinePass", "price": "$4.99 first mo, then $9.99/mo", "quota": "2-5x standard API rate limits", "features": ["Built for Cline IDE & CLI", "also usable with other coding agents via API key"], "models": ["GLM 5.2", "Kimi K3", "Kimi K2.7 Code", "Kimi K2.6", "DeepSeek V4 Pro", "DeepSeek V4 Flash", "MiniMax M3", "MiMo V2.5 Pro", "MiMo V2.5", "Qwen3.7-Max", "Qwen3.7-Plus"], "url": "https://cline.bot/cline-pass" },
 						{ "id": "command-code-go", "name": "Command Code Go", "price": "$1/mo", "quota": "$10 credits, ~15K requests", "features": ["Limited analytics"], "url": "https://commandcode.dev" },
 						{ "id": "command-code-pro", "name": "Command Code Pro", "price": "$15/mo", "quota": "$30 credits, ~25K requests", "features": ["Usage analytics"], "url": "https://commandcode.dev" },
 						{ "id": "command-code-max", "name": "Command Code Max", "price": "$100/mo", "quota": "$150 credits, ~110K requests", "features": ["Higher rate limits", "priority support"], "url": "https://commandcode.dev" },
 						{ "id": "command-code-ultra", "name": "Command Code Ultra", "price": "$200/mo", "quota": "$300 credits, ~200K requests", "features": ["Highest rate limits", "priority support"], "url": "https://commandcode.dev" },
+						{ "id": "command-code-provider", "name": "Command Code Provider", "price": "$15/mo + pay-as-you-go", "quota": "Provider API access, no markup", "features": ["OpenAI + Anthropic endpoints", "all deals auto-applied", "credits never expire", "ZDR support"], "models": ["DeepSeek V4 Pro (4× deal)", "Kimi K3", "GLM 5.2", "MiniMax M3 (2× deal)", "MiMo V2.5 (99% off)", "Claude", "GPT-5.5", "Gemini"], "url": "https://commandcode.ai/provider" },
 						{ "id": "venice-free", "name": "Venice Free", "price": "$0/mo", "quota": "10 text + 15 image prompts/day", "features": ["Base AI models"], "url": "https://venice.ai" },
 						{ "id": "venice-pro", "name": "Venice Pro", "price": "$18/mo", "quota": "Unlimited text, 1,000 images/day, 100 credits/mo", "features": ["All models", "video/music/API credits"], "url": "https://venice.ai" },
 						{ "id": "venice-plus", "name": "Venice Plus", "price": "$68/mo", "quota": "7,500 credits/mo, 2-month credit banking", "features": ["All models", "higher image limits"], "url": "https://venice.ai" },
@@ -158,8 +159,9 @@
 							],
 							"url": "https://cloud.baidu.com/product/codingplan.html"
 						},
-						{ "id": "ollama-cloud-pro", "name": "Ollama Cloud Pro", "price": "$20/mo", "quota": "50x Starter usage", "features": ["All Ollama models"], "url": "https://ollama.com" },
-						{ "id": "ollama-cloud-max", "name": "Ollama Cloud Max", "price": "$100/mo", "quota": "5x Pro usage", "features": ["All Ollama models"], "url": "https://ollama.com" },
+						{ "id": "ollama-cloud-pro", "name": "Ollama Cloud Pro", "price": "$20/mo", "quota": "50x Starter usage", "features": ["All Ollama cloud models", "OpenAI-compatible API", "no local GPU needed"], "models": ["Kimi K3", "DeepSeek V4 Pro", "GLM 5.2", "MiniMax M3", "Qwen 3.5", "GPT-OSS 120B", "Mistral Large 3"], "url": "https://ollama.com" },
+						{ "id": "ollama-cloud-max", "name": "Ollama Cloud Max", "price": "$100/mo", "quota": "5x Pro usage", "features": ["All Ollama cloud models", "OpenAI-compatible API", "highest rate limits"], "url": "https://ollama.com" },
+						{ "id": "cloudflare-ai-gateway", "name": "Cloudflare AI Gateway", "price": "Free tier + pay-per-use", "quota": "Proxy — bring your own provider keys", "features": ["Observability & logging", "caching & rate limiting", "fallback routing", "supports OpenAI, Anthropic, DeepSeek, Groq, + more"], "url": "https://developers.cloudflare.com/ai-gateway/" },
 						{ "id": "cerebras-pro", "name": "Cerebras Pro", "price": "$50/mo", "quota": "24M tokens/day", "features": ["Cerebras models"], "url": "https://cerebras.ai" },
 						{ "id": "cerebras-max", "name": "Cerebras Max", "price": "$200/mo", "quota": "120M tokens/day", "features": ["Cerebras models"], "url": "https://cerebras.ai" },
 						{ "id": "ai-router-unlimited", "name": "AI Router Unlimited", "price": "CHF 39/mo", "quota": "Unlimited", "features": ["Swiss-hosted", "no prompt logging", "3 parallel req", "240 req/min", "10M tok/min fair-use"], "models": ["Qwen3.6", "Gemma-4"], "url": "https://airouter.io" }
@@ -440,6 +442,7 @@
 					"id": "kimi-models",
 					"name": "Kimi Models",
 					"items": [
+						{ "id": "kimi-k3", "name": "Kimi K3", "price": "ClinePass, OpenCode Go, Ollama Cloud, Command Code", "features": ["1M context", "BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "kimi-k2-7-code", "name": "Kimi K2.7 Code", "price": "ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "kimi-k2-6", "name": "Kimi K2.6", "price": "ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "kimi-k2-5", "name": "Kimi-K2.5", "price": "BytePlus ModelArk (Lite/Pro), Alibaba Coding Plan Pro, Feima Copilot (Starter/Value/Pro)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -548,7 +551,8 @@
 						{ "id": "llm-gateway-indiv", "name": "LLM Gateway", "price": "$29/mo (Lite)", "extras": {"Free Tier": "No"}, "features": ["$79/mo (Pro), $179/mo (Max)"] },
 						{ "id": "huggingface-indiv", "name": "Hugging Face Pro", "price": "$9/mo", "extras": {"Free Tier": "No"}, "features": ["20x inference usage"] },
 						{ "id": "baidu-indiv", "name": "Baidu Cloud", "price": "¥40/mo (~$5.50, Lite)", "extras": {"Free Tier": "No"}, "features": ["¥200/mo (~$27.50, Pro)"] },
-						{ "id": "ollama-cloud-indiv", "name": "Ollama Cloud", "price": "$20/mo (Pro)", "extras": {"Free Tier": "No"}, "features": ["$100/mo (Max)"] },
+						{ "id": "ollama-cloud-indiv", "name": "Ollama Cloud", "price": "$20/mo (Pro)", "extras": {"Free Tier": "No"}, "features": ["$100/mo (Max)", "OpenAI-compatible API", "17 cloud models"] },
+						{ "id": "cloudflare-gateway-indiv", "name": "Cloudflare AI Gateway", "price": "Free tier available", "extras": {"Free Tier": "Yes"}, "features": ["Proxy for your existing provider keys", "observability, caching, fallback"] },
 						{ "id": "cerebras-indiv", "name": "Cerebras", "price": "$50/mo (Pro)", "extras": {"Free Tier": "No"}, "features": ["$200/mo (Max)"] },
 						{ "id": "ai-router-indiv", "name": "AI Router", "price": "CHF 39/mo (Unlimited)", "extras": {"Free Tier": "No"}, "features": ["Swiss-hosted, no prompt logging"] }
 					]

@@ -16,6 +16,16 @@
 				"maxOutputTokens": 128000
 			},
 			{
+				"id": "cline-pass/kimi-k3",
+				"name": "Kimi K3",
+				"url": "https://api.cline.bot/api/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 1000000,
+				"maxOutputTokens": 1000000
+			},
+			{
 				"id": "cline-pass/kimi-k2.7-code",
 				"name": "Kimi K2.7 Code",
 				"url": "https://api.cline.bot/api/v1/chat/completions",
@@ -124,6 +134,16 @@
 				"maxOutputTokens": 128000
 			},
 			{
+				"id": "cline-pass/kimi-k3",
+				"name": "Kimi K3",
+				"url": "https://api.cline.bot/api/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 1000000,
+				"maxOutputTokens": 1000000
+			},
+			{
 				"id": "cline-pass/kimi-k2.7-code",
 				"name": "Kimi K2.7 Code",
 				"url": "https://api.cline.bot/api/v1/chat/completions",
@@ -230,6 +250,16 @@
 				"vision": false,
 				"maxInputTokens": 1000000,
 				"maxOutputTokens": 128000
+			},
+			{
+				"id": "cline-pass/kimi-k3",
+				"name": "Kimi K3",
+				"url": "https://api.cline.bot/api/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 1000000,
+				"maxOutputTokens": 1000000
 			},
 			{
 				"id": "cline-pass/kimi-k2.7-code",

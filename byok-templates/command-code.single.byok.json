@@ -1,0 +1,10 @@
+{
+	"name": "command-code",
+	"displayName": "Command Code (single key)",
+	"description": "Command Code Provider API — pay-as-you-go, no markup. Access top open-source and premium models (DeepSeek, Kimi, GLM, MiniMax, MiMo, Qwen, Claude, GPT, Gemini) via OpenAI and Anthropic-compatible endpoints. Permanent deals: DeepSeek V4 Pro 4×, MiniMax M3 2×, MiMo up to 99% off.",
+	"keyUrl": "https://commandcode.ai/studio",
+	"keyInstructions": "Subscribe to the Provider plan at https://commandcode.ai/pricing, then create an API key from Studio at https://commandcode.ai/studio. The same key works for both OpenAI and Anthropic endpoints.",
+	"keyCount": 1,
+	"keyLabels": ["Command Code API Key"],
+	"chatLanguageModelsFile": "command-code.single.chatLanguageModels.json"
+}
