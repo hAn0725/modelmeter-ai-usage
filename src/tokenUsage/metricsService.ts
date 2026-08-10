@@ -9,44 +9,11 @@ import * as path from 'path';
 import * as os from 'os';
 import { MetricsDatabase, DashboardSummary, VendorAgg, ModelAgg, ModelDayTotal, ModelPromptBreakdown, SessionSummary, SessionDetail, SessionFilterOptions, CopilotCreditsSummary } from './metricsDatabase';
 import { parseSessionFile, computeFileHash, ParsedSession } from './sessionStoreImporter';
+import { parseCliSessionFile, isCliSessionFilePath, getCliSessionStateRoots } from './cliSessionImporter';
 import { estimateCost, resolveModelPricingKey } from './tokenCostEstimator';
 import { estimateCopilotCredits } from './copilotCreditEstimator';
 import { ILogService } from '../platform/log/common/logService';
-
-// ─── WSL detection ──────────────────────────────────────────────────────────
-
-let _isWsl: boolean | undefined;
-
-function isWSL(): boolean {
-	if (_isWsl !== undefined) { return _isWsl; }
-	try {
-		const version = fs.readFileSync('/proc/version', 'utf8').toLowerCase();
-		_isWsl = version.includes('microsoft') || version.includes('wsl');
-	} catch {
-		_isWsl = false;
-	}
-	return _isWsl;
-}
-
-function getWindowsUserDirs(): string[] {
-	const dirs: string[] = [];
-	if (!isWSL()) { return dirs; }
-	try {
-		const usersPath = '/mnt/c/Users';
-		if (!fs.existsSync(usersPath)) { return dirs; }
-		const entries = fs.readdirSync(usersPath, { withFileTypes: true });
-		const systemDirs = new Set(['public', 'default', 'default user', 'all users', 'default account']);
-		for (const entry of entries) {
-			if (!entry.isDirectory()) { continue; }
-			const name = entry.name.toLowerCase();
-			if (systemDirs.has(name)) { continue; }
-			dirs.push(entry.name);
-		}
-	} catch {
-		// /mnt/c may not be available
-	}
-	return dirs;
-}
+import { isWSL, getWindowsUserDirs } from './wslUtils';
 
 function getWorkspaceStorageRoots(home: string): string[] {
 	const roots: string[] = [];
@@ -114,6 +81,49 @@ interface FileCandidate {
 	path: string;
 	size: number;
 	mtime: number;
+}
+
+/** Dispatches to the CLI or VS Code chat-session parser based on the file's location. */
+function parseAnySessionFile(filePath: string): ParsedSession | null {
+	return isCliSessionFilePath(filePath) ? parseCliSessionFile(filePath) : parseSessionFile(filePath);
+}
+
+/** Enumerates Copilot CLI session-state files (`<uuid>/events.jsonl` and legacy `<uuid>.jsonl`) across all candidate roots. */
+function enumerateAllCliFiles(log: ILogService): FileCandidate[] {
+	const candidates: FileCandidate[] = [];
+	const cutoffMs = getBackfillCutoffMs();
+
+	for (const root of getCliSessionStateRoots()) {
+		try {
+			if (!fs.existsSync(root)) { continue; }
+			const entries = fs.readdirSync(root, { withFileTypes: true });
+			for (const entry of entries) {
+				const fp = entry.isDirectory()
+					? path.join(root, entry.name, 'events.jsonl')
+					: (entry.name.endsWith('.jsonl') ? path.join(root, entry.name) : undefined);
+				if (!fp) { continue; }
+				try {
+					if (!fs.existsSync(fp)) { continue; }
+					const stat = fs.statSync(fp);
+					if (stat.size === 0 || stat.mtimeMs < cutoffMs) { continue; }
+					candidates.push({ path: fp, size: stat.size, mtime: stat.mtimeMs });
+				} catch {
+					// skip inaccessible entries
+				}
+			}
+		} catch {
+			// this root's session-state may not exist (Copilot CLI never used on that side)
+		}
+	}
+
+	return candidates;
+}
+
+/** Most-recently-modified Copilot CLI session file, for quick/incremental import. */
+function findMostRecentCliFile(log: ILogService): FileCandidate[] {
+	const all = enumerateAllCliFiles(log);
+	if (all.length === 0) { return []; }
+	return [all.reduce((newest, c) => c.mtime > newest.mtime ? c : newest)];
 }
 
 function enumerateAllJsonlFiles(log: ILogService): FileCandidate[] {
@@ -240,7 +250,7 @@ export class MetricsService implements vscode.Disposable {
 		// findMostRecentWorkspaceDir is synchronous (fs.readdirSync/statSync) —
 		// it blocks the extension host thread for its duration.
 		const enumStart = Date.now();
-		const candidates = findMostRecentWorkspaceDir(this._log);
+		const candidates = [...findMostRecentWorkspaceDir(this._log), ...findMostRecentCliFile(this._log)];
 		this._log.info(`MetricsService: quick import — enumerated ${candidates.length} candidate file(s) in ${Date.now() - enumStart}ms (blocking fs scan)`);
 		if (candidates.length === 0) {
 			this._log.debug('MetricsService: no files found for quick import');
@@ -255,7 +265,7 @@ export class MetricsService implements vscode.Disposable {
 			await this._db.runInTransaction(async () => {
 				for (const c of candidates) {
 					const parseStart = Date.now();
-					const parsed = parseSessionFile(c.path);
+					const parsed = parseAnySessionFile(c.path);
 					parseMs += Date.now() - parseStart;
 					if (!parsed) { continue; }
 
@@ -302,7 +312,7 @@ export class MetricsService implements vscode.Disposable {
 					// Synchronous fs.readdirSync/statSync walk over every workspaceStorage
 					// root — blocks the extension host thread for its full duration.
 					const enumStart = Date.now();
-					const allFiles = enumerateAllJsonlFiles(this._log);
+					const allFiles = [...enumerateAllJsonlFiles(this._log), ...enumerateAllCliFiles(this._log)];
 					const enumMs = Date.now() - enumStart;
 					if (allFiles.length === 0) {
 						this._log.debug(`MetricsService: no files for background import (enumeration took ${enumMs}ms)`);
@@ -326,7 +336,7 @@ export class MetricsService implements vscode.Disposable {
 							await this._db.runInTransaction(async () => {
 								for (const fp of batch) {
 									const parseStart = Date.now();
-									const parsed = parseSessionFile(fp);
+									const parsed = parseAnySessionFile(fp);
 									parseMs += Date.now() - parseStart;
 									if (!parsed) { continue; }
 
@@ -390,10 +400,10 @@ export class MetricsService implements vscode.Disposable {
 				return false;
 			}
 
-			// parseSessionFile is fully synchronous (fs.readFileSync + JSON parsing) —
+			// parseAnySessionFile is fully synchronous (fs.readFileSync + JSON parsing) —
 			// blocks the extension host thread for the duration of the parse.
 			const parseStart = Date.now();
-			const parsed = parseSessionFile(filePath);
+			const parsed = parseAnySessionFile(filePath);
 			const parseMs = Date.now() - parseStart;
 			if (!parsed) { return false; }
 
@@ -439,7 +449,7 @@ export class MetricsService implements vscode.Disposable {
 		// Synchronous fs.readdirSync/statSync walk — blocks the extension host
 		// thread for its full duration.
 		const enumStart = Date.now();
-		const allFiles = enumerateAllJsonlFiles(this._log);
+		const allFiles = [...enumerateAllJsonlFiles(this._log), ...enumerateAllCliFiles(this._log)];
 		const enumMs = Date.now() - enumStart;
 		this._log.info(`MetricsService: rebuilding from ${allFiles.length} files (enumeration: ${enumMs}ms blocking)`);
 
@@ -454,7 +464,7 @@ export class MetricsService implements vscode.Disposable {
 				await this._db.runInTransaction(async () => {
 						for (const c of batch) {
 							const parseStart = Date.now();
-							const parsed = parseSessionFile(c.path);
+							const parsed = parseAnySessionFile(c.path);
 							parseMs += Date.now() - parseStart;
 							if (!parsed) { continue; }
 

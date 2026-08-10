@@ -818,7 +818,7 @@ export class MetricsDatabase {
 				s.session_model_name,
 				s.session_extension,
 				s.has_pending_edits,
-				COALESCE(t.turn_count, 0) AS request_count,
+				s.request_count AS request_count,
 				COALESCE(t.prompt_tokens, 0) AS promptTokens,
 				COALESCE(t.completion_tokens, 0) AS completionTokens,
 				COALESCE(t.total_tokens, 0) AS totalTokens,
@@ -831,7 +831,6 @@ export class MetricsDatabase {
 			LEFT JOIN (
 				SELECT
 					session_id,
-					COUNT(*) AS turn_count,
 					SUM(prompt_tokens) AS prompt_tokens,
 					SUM(completion_tokens) AS completion_tokens,
 					SUM(prompt_tokens + completion_tokens) AS total_tokens,
