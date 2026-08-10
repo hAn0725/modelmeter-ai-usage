@@ -170,6 +170,7 @@ const MODEL_ENERGY: Record<string, ModelEnergy> = {
 	'minimax-m2.7': { inputWhPerToken: 0.00030, outputWhPerToken: 0.0030 },
 	'mimo-v2.5': { inputWhPerToken: 0.000080, outputWhPerToken: 0.00080 },
 	'mimo-v2.5-pro': { inputWhPerToken: 0.00020, outputWhPerToken: 0.0020 },
+	'ernie-5.1': { inputWhPerToken: 0.00040, outputWhPerToken: 0.0040 },
 	'raptor-mini': { inputWhPerToken: 0.000040, outputWhPerToken: 0.00040 },
 	'mai-code-1-flash': { inputWhPerToken: 0.000040, outputWhPerToken: 0.00040 },
 };

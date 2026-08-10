@@ -21,6 +21,8 @@ const VENDOR_COLORS: Record<string, string> = {
 	google: '#4285f4',
 	deepseek: '#6366f1',
 	zhipu: '#f59e0b',
+	moonshot: '#14b8a6',
+	baidu: '#ef4444',
 	unknown: '#94a3b8',
 };
 

@@ -31,7 +31,7 @@ See exactly how many tokens you're consuming and what it costs — per vendor, p
 
 Bring Your Own Key — add, edit, and remove chat language model providers without touching JSON files.
 
-- **Template catalog** — 9+ pre-configured providers (DeepSeek, Mistral, OpenRouter, Alibaba, Feima Code, BytePlus, ClinePass, OpenCode Go)
+- **Template catalog** — 13+ pre-configured providers (DeepSeek, Mistral, OpenRouter, Alibaba, Feima Code, BytePlus, ClinePass, OpenCode Go, Z.ai, Kimi, Baidu)
 - **Single & multi-key providers** — Group multiple API keys (e.g. one for OpenAI-compatible, one for Anthropic-compatible) into a single provider
 - **Webview editors** — Create and edit providers and models through form-based UI, not raw JSON
 - **Open `chatLanguageModels.json`** — Jump to the file directly when you need manual edits

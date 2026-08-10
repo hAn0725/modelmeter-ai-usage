@@ -1,0 +1,10 @@
+{
+	"name": "zai-coding-plan-cn",
+	"displayName": "Z.ai GLM Coding Plan (CN)",
+	"description": "Z.ai GLM Coding Plan — 5 GLM models via OpenAI-compatible API. CN endpoint (bigmodel.cn) for users in China.",
+	"keyUrl": "https://bigmodel.cn/usercenter/apikeys",
+	"keyInstructions": "Subscribe to the GLM Coding Plan and create an API key at the 智谱开放平台 (https://bigmodel.cn). Use the CN endpoint for users in China.",
+	"keyCount": 1,
+	"keyLabels": ["Z.ai (CN) API Key"],
+	"chatLanguageModelsFile": "zai-coding-plan.cn.single.chatLanguageModels.json"
+}

@@ -49,7 +49,29 @@ byok-templates/
 ├── byteplus.single.byok.json
 ├── byteplus.single.chatLanguageModels.json
 ├── byteplus.multi.byok.json
-└── byteplus.multi.chatLanguageModels.json
+├── byteplus.multi.chatLanguageModels.json
+├── zai-coding-plan.global.byok.json            # Z.ai GLM Coding Plan (Global) metadata
+├── zai-coding-plan.global.single.chatLanguageModels.json
+├── zai-coding-plan.global.multi.chatLanguageModels.json
+├── zai-coding-plan.cn.byok.json                # Z.ai GLM Coding Plan (CN, bigmodel.cn) metadata
+├── zai-coding-plan.cn.single.chatLanguageModels.json
+├── zai-coding-plan.cn.multi.chatLanguageModels.json
+├── kimi-coding-plan.byok.json                  # Kimi (Moonshot) Coding Plan metadata
+├── kimi-coding-plan.single.chatLanguageModels.json
+├── kimi-coding-plan.multi.chatLanguageModels.json
+├── baidu-token-plan.cn.byok.json               # Baidu Token Plan (CN) metadata
+├── baidu-token-plan.cn.single.chatLanguageModels.json
+├── baidu-token-plan.cn.multi.chatLanguageModels.json
+├── ollama-cloud.single.byok.json               # Ollama Cloud (hosted, OpenAI-compatible) metadata
+├── ollama-cloud.single.chatLanguageModels.json
+├── ollama-cloud.multi.byok.json
+├── ollama-cloud.multi.chatLanguageModels.json
+├── cloudflare-gateway.byok.json                # Cloudflare AI Gateway (proxy) metadata
+├── cloudflare-gateway.chatLanguageModels.json
+├── command-code.single.byok.json               # Command Code Provider API metadata
+├── command-code.single.chatLanguageModels.json
+├── command-code.multi.byok.json
+└── command-code.multi.chatLanguageModels.json
 ```
 
 ## How to Use Manually

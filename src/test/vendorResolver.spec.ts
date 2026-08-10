@@ -31,6 +31,10 @@ describe('vendorResolver', () => {
 		expect(resolveVendor('deepseek-v4-pro')).toBe('deepseek');
 		expect(resolveVendor('glm-5.1')).toBe('zhipu');
 		expect(resolveVendor('glm-5')).toBe('zhipu');
+		expect(resolveVendor('kimi-k3')).toBe('moonshot');
+		expect(resolveVendor('kimi-k2.7-code')).toBe('moonshot');
+		expect(resolveVendor('moonshot-v1-128k')).toBe('moonshot');
+		expect(resolveVendor('ernie-5.1')).toBe('baidu');
 	});
 
 	it('returns unknown for unrecognized models', () => {

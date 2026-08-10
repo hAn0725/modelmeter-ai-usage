@@ -1,0 +1,10 @@
+{
+	"name": "command-code",
+	"displayName": "Command Code (multi-key)",
+	"description": "Command Code Provider API with multiple API keys for load distribution. Each account gets 2 groups (OpenAI + Anthropic format). Useful when you have several accounts with limited per-key quota.",
+	"keyUrl": "https://commandcode.ai/studio",
+	"keyInstructions": "Subscribe to multiple Command Code Provider plans. For each account: create an API key from Studio at https://commandcode.ai/studio and provide it when prompted. Keys are stored separately in VS Code's keystore.",
+	"keyCount": 3,
+	"keyLabels": ["Account 1", "Account 2", "Account 3"],
+	"chatLanguageModelsFile": "command-code.multi.chatLanguageModels.json"
+}

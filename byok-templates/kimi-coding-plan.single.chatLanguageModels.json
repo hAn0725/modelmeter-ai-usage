@@ -1,0 +1,60 @@
+[
+	{
+		"name": "Kimi Coding Plan",
+		"vendor": "customendpoint",
+		"apiType": "chat-completions",
+		"apiKey": "YOUR_API_KEY_HERE",
+		"models": [
+			{
+				"id": "kimi-k3",
+				"name": "Kimi K3",
+				"url": "https://api.kimi.com/coding/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 1048576,
+				"maxOutputTokens": 131072
+			},
+			{
+				"id": "kimi-k2.7-code",
+				"name": "Kimi K2.7 Code",
+				"url": "https://api.kimi.com/coding/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 262144,
+				"maxOutputTokens": 16000
+			},
+			{
+				"id": "kimi-k2.7-code-highspeed",
+				"name": "Kimi K2.7 Code Highspeed",
+				"url": "https://api.kimi.com/coding/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 262144,
+				"maxOutputTokens": 16000
+			},
+			{
+				"id": "kimi-k2.6",
+				"name": "Kimi K2.6",
+				"url": "https://api.kimi.com/coding/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 224000,
+				"maxOutputTokens": 16000
+			},
+			{
+				"id": "kimi-k2.5",
+				"name": "Kimi K2.5",
+				"url": "https://api.kimi.com/coding/v1/chat/completions",
+				"toolCalling": true,
+				"thinking": true,
+				"vision": true,
+				"maxInputTokens": 128000,
+				"maxOutputTokens": 16000
+			}
+		]
+	}
+]

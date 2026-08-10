@@ -1,0 +1,10 @@
+{
+	"name": "ollama-cloud",
+	"displayName": "Ollama Cloud (single key)",
+	"description": "Ollama Cloud — run large open models on Ollama's hosted cloud via an OpenAI-compatible API. Create an API key on ollama.com and use it directly, no local GPU required.",
+	"keyUrl": "https://ollama.com/settings/keys",
+	"keyInstructions": "Sign in at https://ollama.com, then create an API key at https://ollama.com/settings/keys. Use that key as the API key here.",
+	"keyCount": 1,
+	"keyLabels": ["Ollama Cloud API Key"],
+	"chatLanguageModelsFile": "ollama-cloud.single.chatLanguageModels.json"
+}
