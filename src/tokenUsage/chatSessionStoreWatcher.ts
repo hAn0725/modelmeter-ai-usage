@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { ILogService } from '../platform/log/common/logService';
 import type { MetricsService } from './metricsService';
+import { isWSL, getWindowsUserDirs } from './wslUtils';
 
 // ─── Settings ──────────────────────────────────────────────────────────────
 
@@ -53,50 +54,6 @@ export interface ChatSessionStoreEvent {
 }
 
 type EventHandler = (event: ChatSessionStoreEvent) => void;
-
-// ─── WSL detection ────────────────────────────────────────────────────────
-
-let _isWsl: boolean | undefined;
-
-/**
- * Detects whether the extension is running inside WSL (Windows Subsystem for Linux).
- * Cached after first call.
- */
-function isWSL(): boolean {
-	if (_isWsl !== undefined) { return _isWsl; }
-	try {
-		const version = fs.readFileSync('/proc/version', 'utf8').toLowerCase();
-		_isWsl = version.includes('microsoft') || version.includes('wsl');
-	} catch {
-		_isWsl = false;
-	}
-	return _isWsl;
-}
-
-/**
- * When running in WSL, the VS Code client runs on Windows and stores chat
- * sessions at Windows paths. These are accessible from WSL via `/mnt/c/`.
- * Returns the Windows user directories found under `/mnt/c/Users/`.
- */
-function getWindowsUserDirs(): string[] {
-	const dirs: string[] = [];
-	if (!isWSL()) { return dirs; }
-	try {
-		const usersPath = '/mnt/c/Users';
-		if (!fs.existsSync(usersPath)) { return dirs; }
-		const entries = fs.readdirSync(usersPath, { withFileTypes: true });
-		const systemDirs = new Set(['public', 'default', 'default user', 'all users', 'default account']);
-		for (const entry of entries) {
-			if (!entry.isDirectory()) { continue; }
-			const name = entry.name.toLowerCase();
-			if (systemDirs.has(name)) { continue; }
-			dirs.push(entry.name);
-		}
-	} catch {
-		// /mnt/c may not be available
-	}
-	return dirs;
-}
 
 // ─── Workspace storage path probing ─────────────────────────────────────────
 

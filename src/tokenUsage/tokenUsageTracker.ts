@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ChatSessionStoreWatcher, ChatSessionStoreEvent } from './chatSessionStoreWatcher';
+import { CliSessionWatcher } from './cliSessionWatcher';
 import { TokenUsageStorage, TokenSource, TrackedUsageEvent } from './tokenUsageStorage';
 import { MetricsService } from './metricsService';
 import { estimateCost, resolveModelPricingKey } from './tokenCostEstimator';
@@ -28,6 +29,7 @@ export class TokenUsageTracker implements vscode.Disposable {
 	private readonly _storage: TokenUsageStorage;
 	private readonly _metricsService: MetricsService;
 	private readonly _chatSessionWatcher: ChatSessionStoreWatcher;
+	private readonly _cliSessionWatcher: CliSessionWatcher;
 	private readonly _log: ILogService;
 
 	// Live session counters (status bar)
@@ -54,6 +56,7 @@ export class TokenUsageTracker implements vscode.Disposable {
 		this._metricsService = new MetricsService(dbPath, logService.createSubLogger('Metrics'));
 		this._storage = new TokenUsageStorage(globalState);
 		this._chatSessionWatcher = new ChatSessionStoreWatcher(logService.createSubLogger('ChatStore'));
+		this._cliSessionWatcher = new CliSessionWatcher(logService.createSubLogger('CliStore'));
 	}
 
 	activate(context: vscode.ExtensionContext): void {
@@ -71,17 +74,22 @@ export class TokenUsageTracker implements vscode.Disposable {
 		// 1. Quick import (deferred, non-blocking) — gets recent data into DB
 		setImmediate(() => { void this._metricsService.quickImport()
 			.then(() => this._refreshVendorFlags())
+			.then(() => this._notifyImportComplete())
 			.catch(err => this._log.warn(`Quick import failed: ${err instanceof Error ? err.message : String(err)}`))
 		; });
 		// 2. Background catch-up (async, non-blocking) — full historical data
 		this._metricsService.backgroundImport()
 			.then(() => this._refreshVendorFlags())
+			.then(() => this._notifyImportComplete())
 			.catch(err => this._log.warn(`Background import failed: ${err instanceof Error ? err.message : String(err)}`));
 
 		// 3. File watcher for real-time updates
 		this._chatSessionWatcher.setMetricsService(this._metricsService);
 		this._chatSessionWatcher.activate(context);
 		this._chatSessionWatcher.onEvent(event => this._onChatSessionStoreEvent(event));
+
+		this._cliSessionWatcher.setMetricsService(this._metricsService);
+		this._cliSessionWatcher.activate(context);
 	}
 
 	/** Recomputes cached vendor-usage flags and, if Copilot usage is newly detected, attempts silent entitlement resolution. */
@@ -95,6 +103,12 @@ export class TokenUsageTracker implements vscode.Disposable {
 		} catch (err) {
 			this._log.debug(`Vendor flags refresh failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
+	}
+
+	/** Notifies UI listeners (dashboards, tree, status bar) after a bulk import pass lands new rows. */
+	private _notifyImportComplete(): void {
+		this._onDidUpdate.fire();
+		this._onDidChangeStored.fire();
 	}
 
 	registerGitHubSessionListener(): void {
@@ -150,6 +164,7 @@ export class TokenUsageTracker implements vscode.Disposable {
 		this._sessionCost = 0;
 
 		this._chatSessionWatcher.reloadAll();
+		this._cliSessionWatcher.reloadAll();
 
 		await this._refreshVendorFlags();
 
@@ -203,6 +218,7 @@ export class TokenUsageTracker implements vscode.Disposable {
 	dispose(): void {
 		(this as any)._sessionChangeListener?.dispose();
 		this._chatSessionWatcher.dispose();
+		this._cliSessionWatcher.dispose();
 		this._onDidUpdate.dispose();
 		this._onDidChangeStored.dispose();
 	}
