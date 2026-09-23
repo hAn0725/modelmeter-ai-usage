@@ -4,26 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IDirectoryGroup, IDirectorySubgroup, IDirectoryItem } from '../types/directory';
-import { IChatLanguageModelEntry, IChatLanguageModelModel } from '../byok/types';
 import { SessionSummary } from '../tokenUsage/metricsDatabase';
 
 /**
  * Discriminating union of all possible tree node types.
  */
 export type TreeNodeType =
-	| 'catalogGroup'
-	| 'catalogSubgroup'
-	| 'catalogItem'
-	| 'byokSection'
-	| 'byokProvider'
-	| 'byokModel'
 	| 'usageSection'
 	| 'usageVendor'
 	| 'usageModel'
-	| 'moreInfoSection'
-	| 'extensionSection'
-	| 'extensionItem'
 	| 'sessionSection'
 	| 'sessionNode'
 	| 'helpSection'
@@ -42,7 +31,7 @@ export class TreeNode {
 		/** Human-readable label. */
 		readonly label: string,
 		/** Reference to the underlying data object. */
-		readonly data: IDirectoryGroup | IDirectorySubgroup | IDirectoryItem | IChatLanguageModelEntry | IChatLanguageModelModel | SessionSummary | undefined,
+		readonly data: SessionSummary | undefined,
 		/** Optional description (shown dimmed next to the label). */
 		readonly description?: string,
 		/** Optional tooltip text. */
@@ -60,85 +49,6 @@ export class TreeNode {
 
 		// Collapsibility and command based on type
 		switch (this.type) {
-			case 'catalogGroup':
-				item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
-				item.iconPath = new vscode.ThemeIcon(
-					(this.data as IDirectoryGroup)?.icon ?? 'symbol-constant'
-				);
-				break;
-
-			case 'catalogSubgroup':
-				item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
-				item.iconPath = new vscode.ThemeIcon('folder');
-				break;
-
-			case 'catalogItem': {
-				item.collapsibleState = vscode.TreeItemCollapsibleState.None;
-				const catalogItem = this.data as IDirectoryItem;
-				item.iconPath = new vscode.ThemeIcon(
-					catalogItem.price?.toLowerCase().startsWith('free')
-						? 'check'
-						: 'link'
-				);
-				// Primary click: open URL
-				if (catalogItem.url) {
-					item.command = {
-						command: 'copilotAlternatives.openUrl',
-						title: 'Open URL',
-						arguments: [catalogItem.url],
-					};
-				}
-				break;
-			}
-
-			case 'byokSection':
-				item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-				item.iconPath = new vscode.ThemeIcon('key');
-				// No description — title is self-explanatory
-				item.description = undefined;
-				break;
-
-			case 'byokProvider':
-				item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
-				item.iconPath = new vscode.ThemeIcon('symbol-color');
-				break;
-
-			case 'byokModel':
-				item.collapsibleState = vscode.TreeItemCollapsibleState.None;
-				item.iconPath = new vscode.ThemeIcon('symbol-method');
-				// Primary click: edit model
-				item.command = {
-					command: 'copilotAlternatives.byok.editModel',
-					title: 'Edit Model',
-					arguments: [this.data],
-				};
-				break;
-
-			case 'extensionSection':
-				item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
-				item.iconPath = new vscode.ThemeIcon('extensions');
-				break;
-
-			case 'extensionItem': {
-				item.collapsibleState = vscode.TreeItemCollapsibleState.None;
-				const extItem = this.data as IDirectoryItem;
-				item.iconPath = new vscode.ThemeIcon('extensions');
-				// Primary click: open the extension's home page
-				if (extItem.url) {
-					item.command = {
-						command: 'copilotAlternatives.openUrl',
-						title: 'Open Home Page',
-						arguments: [extItem.url],
-					};
-				}
-				break;
-			}
-
-			case 'moreInfoSection':
-				item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
-				item.iconPath = new vscode.ThemeIcon('book');
-				break;
-
 			case 'usageSection':
 				item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
 				item.iconPath = new vscode.ThemeIcon('dashboard');
@@ -154,8 +64,8 @@ export class TreeNode {
 				item.iconPath = new vscode.ThemeIcon('symbol-method');
 				// Click opens model dashboard
 				item.command = {
-					command: 'copilotAlternatives.openUsageModel',
-					title: 'Show Model Usage',
+					command: 'modelMeter.openUsageModel',
+					title: '打开模型用量',
 					arguments: [this],
 				};
 				break;
@@ -163,7 +73,7 @@ export class TreeNode {
 			case 'sessionSection':
 				item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
 				// Default: comment-discussion. Filter icon when description doesn't start with "last 7d"
-				if (this.description && !this.description.startsWith('last 7d')) {
+				if (this.description && !this.description.startsWith('最近 7 天')) {
 					item.iconPath = new vscode.ThemeIcon('filter');
 				} else {
 					item.iconPath = new vscode.ThemeIcon('comment-discussion');
@@ -176,8 +86,8 @@ export class TreeNode {
 				const session = this.data as SessionSummary | undefined;
 				if (session?.session_id) {
 					item.command = {
-						command: 'copilotAlternatives.showSessionDetail',
-						title: 'Show Session Details',
+						command: 'modelMeter.showSessionDetail',
+						title: '打开会话详情',
 						arguments: [session.session_id],
 					};
 				}
@@ -194,8 +104,8 @@ export class TreeNode {
 				item.iconPath = new vscode.ThemeIcon('book');
 				// Primary click opens the help doc
 				item.command = {
-					command: 'copilotAlternatives.openHelpDoc',
-					title: 'Open Help',
+					command: 'modelMeter.openHelpDoc',
+					title: '打开帮助',
 					arguments: [this.id],
 				};
 				break;

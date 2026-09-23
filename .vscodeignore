@@ -1,16 +1,26 @@
 .vscode/**
 .vscode-test/**
 src/**
+scripts/**
+assets/**
 !data/**
 .gitignore
 .eslintrc.json
 tsconfig.json
 **/*.map
 **/*.ts
-!out/**/*.js
+out/test/**
+!out/extension.js
+!out/platform/**/*.js
+!out/tokenUsage/**/*.js
+!out/tree/**/*.js
+!out/types/**/*.js
 .github/**
 docs/**
 README.md
+.git/**
+package-lock.json
+*.vsix
 
 # Exclude all node_modules, then re-include only the runtime files needed
 node_modules/**

@@ -7,11 +7,10 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { MetricsDatabase, DashboardSummary, VendorAgg, ModelAgg, ModelDayTotal, ModelPromptBreakdown, SessionSummary, SessionDetail, SessionFilterOptions, CopilotCreditsSummary } from './metricsDatabase';
+import { MetricsDatabase, DashboardSummary, VendorAgg, ModelAgg, ModelDayTotal, ModelPromptBreakdown, SessionSummary, SessionDetail, SessionFilterOptions } from './metricsDatabase';
 import { parseSessionFile, computeFileHash, ParsedSession } from './sessionStoreImporter';
-import { parseCliSessionFile, isCliSessionFilePath, getCliSessionStateRoots } from './cliSessionImporter';
-import { estimateCost, resolveModelPricingKey } from './tokenCostEstimator';
-import { estimateCopilotCredits } from './copilotCreditEstimator';
+import { estimateTurnCost } from './tokenCostEstimator';
+import { IMPORTER_VERSION } from './importerVersion';
 import { ILogService } from '../platform/log/common/logService';
 import { isWSL, getWindowsUserDirs } from './wslUtils';
 
@@ -59,15 +58,65 @@ function getWorkspaceStorageRoots(home: string): string[] {
 	return roots;
 }
 
+/**
+ * Returns candidate `globalStorage/emptyWindowChatSessions` directories.
+ *
+ * VS Code stores chat sessions from windows WITHOUT an open folder here as flat
+ * `*.jsonl` files. They are not under workspaceStorage, so they were previously
+ * missed entirely (e.g. Xiaomi MiMo BYOK sessions in a no-folder window).
+ */
+function getEmptyWindowSessionRoots(home: string): string[] {
+	const roots: string[] = [];
+	const userDirs: string[] = [];
+
+	if (process.platform === 'win32') {
+		userDirs.push(
+			path.join(home, 'AppData', 'Roaming', 'Code', 'User'),
+			path.join(home, 'AppData', 'Roaming', 'Code - Insiders', 'User'),
+		);
+	} else if (process.platform === 'darwin') {
+		userDirs.push(
+			path.join(home, 'Library', 'Application Support', 'Code', 'User'),
+			path.join(home, 'Library', 'Application Support', 'Code - Insiders', 'User'),
+		);
+	} else {
+		userDirs.push(
+			path.join(home, '.config', 'Code', 'User'),
+			path.join(home, '.config', 'Code - Insiders', 'User'),
+			path.join(home, '.config', 'code-oss-dev', 'User'),
+		);
+
+		if (isWSL()) {
+			for (const user of getWindowsUserDirs()) {
+				userDirs.push(
+					path.join('/mnt/c/Users', user, 'AppData', 'Roaming', 'Code', 'User'),
+					path.join('/mnt/c/Users', user, 'AppData', 'Roaming', 'Code - Insiders', 'User'),
+				);
+			}
+		}
+	}
+
+	userDirs.push(
+		path.join(home, '.vscode-server', 'data', 'User'),
+		path.join(home, '.vscode-server-insiders', 'data', 'User'),
+		path.join(home, '.vscode-oss-dev', 'User'),
+	);
+
+	for (const userDir of userDirs) {
+		roots.push(path.join(userDir, 'globalStorage', 'emptyWindowChatSessions'));
+	}
+	return roots;
+}
+
 // ─── Backfill window ───────────────────────────────────────────────────────
 
-const SETTING_BACKFILL_DAYS = 'copilotAlternatives.tokenUsage.backfillDays';
+const SETTING_BACKFILL_DAYS = 'modelMeter.tokenUsage.backfillDays';
 const DEFAULT_BACKFILL_DAYS = 60;
 
 /**
  * Returns the epoch-ms cutoff for files to import. Files with mtime older
  * than this are skipped during enumeration. Controlled by the
- * `copilotAlternatives.tokenUsage.backfillDays` setting (default 60).
+ * `modelMeter.tokenUsage.backfillDays` setting (default 60).
  */
 function getBackfillCutoffMs(): number {
 	const days = vscode.workspace.getConfiguration()
@@ -83,47 +132,9 @@ interface FileCandidate {
 	mtime: number;
 }
 
-/** Dispatches to the CLI or VS Code chat-session parser based on the file's location. */
+/** Parses a VS Code chat-session (.jsonl mutation log) file. */
 function parseAnySessionFile(filePath: string): ParsedSession | null {
-	return isCliSessionFilePath(filePath) ? parseCliSessionFile(filePath) : parseSessionFile(filePath);
-}
-
-/** Enumerates Copilot CLI session-state files (`<uuid>/events.jsonl` and legacy `<uuid>.jsonl`) across all candidate roots. */
-function enumerateAllCliFiles(log: ILogService): FileCandidate[] {
-	const candidates: FileCandidate[] = [];
-	const cutoffMs = getBackfillCutoffMs();
-
-	for (const root of getCliSessionStateRoots()) {
-		try {
-			if (!fs.existsSync(root)) { continue; }
-			const entries = fs.readdirSync(root, { withFileTypes: true });
-			for (const entry of entries) {
-				const fp = entry.isDirectory()
-					? path.join(root, entry.name, 'events.jsonl')
-					: (entry.name.endsWith('.jsonl') ? path.join(root, entry.name) : undefined);
-				if (!fp) { continue; }
-				try {
-					if (!fs.existsSync(fp)) { continue; }
-					const stat = fs.statSync(fp);
-					if (stat.size === 0 || stat.mtimeMs < cutoffMs) { continue; }
-					candidates.push({ path: fp, size: stat.size, mtime: stat.mtimeMs });
-				} catch {
-					// skip inaccessible entries
-				}
-			}
-		} catch {
-			// this root's session-state may not exist (Copilot CLI never used on that side)
-		}
-	}
-
-	return candidates;
-}
-
-/** Most-recently-modified Copilot CLI session file, for quick/incremental import. */
-function findMostRecentCliFile(log: ILogService): FileCandidate[] {
-	const all = enumerateAllCliFiles(log);
-	if (all.length === 0) { return []; }
-	return [all.reduce((newest, c) => c.mtime > newest.mtime ? c : newest)];
+	return parseSessionFile(filePath);
 }
 
 function enumerateAllJsonlFiles(log: ILogService): FileCandidate[] {
@@ -166,6 +177,30 @@ function enumerateAllJsonlFiles(log: ILogService): FileCandidate[] {
 					}
 				} catch {
 					// skip inaccessible chatSessions dirs
+				}
+			}
+		} catch {
+			// skip inaccessible roots
+		}
+	}
+
+	// Empty-window chat sessions: flat `*.jsonl` files directly inside the root
+	// (windows without an open folder) — not under workspaceStorage.
+	for (const root of getEmptyWindowSessionRoots(os.homedir())) {
+		try {
+			if (!fs.existsSync(root)) { continue; }
+			const files = fs.readdirSync(root).filter(f => f.endsWith('.jsonl'));
+			for (const file of files) {
+				const fp = path.join(root, file);
+				if (seen.has(fp)) { continue; }
+				seen.add(fp);
+				try {
+					const stat = fs.statSync(fp);
+					if (stat.size === 0) { continue; }
+					if (stat.mtimeMs < cutoffMs) { continue; }
+					candidates.push({ path: fp, size: stat.size, mtime: stat.mtimeMs });
+				} catch {
+					// skip inaccessible files
 				}
 			}
 		} catch {
@@ -223,6 +258,22 @@ function findMostRecentWorkspaceDir(log: ILogService): FileCandidate[] {
 
 // ─── MetricsService ─────────────────────────────────────────────────────────
 
+/** Result summary of one import pass (quick / background / rebuild). */
+export interface ImportPassStats {
+	/** Files discovered within the backfill window. */
+	discovered: number;
+	/** Files that were new or changed (parsed). */
+	changed: number;
+	/** Files successfully imported (with >=1 turn). */
+	imported: number;
+	/** Files skipped because unchanged (same size and current importer version). */
+	skipped: number;
+	/** Turns written in this pass. */
+	turns: number;
+	/** Wall-clock duration in ms. */
+	ms: number;
+}
+
 export class MetricsService implements vscode.Disposable {
 	private _db: MetricsDatabase;
 	private _log: ILogService;
@@ -243,139 +294,149 @@ export class MetricsService implements vscode.Disposable {
 
 	// ── Layer 1: Quick batch (async, <500ms) ──────────────────────────
 
-	async quickImport(): Promise<void> {
-		const days = this._backfillDays();
-		this._log.info(`MetricsService: quick import (backfill: ${days} days)`);
-
-		// findMostRecentWorkspaceDir is synchronous (fs.readdirSync/statSync) —
-		// it blocks the extension host thread for its duration.
+	async quickImport(): Promise<ImportPassStats> {
 		const enumStart = Date.now();
-		const candidates = [...findMostRecentWorkspaceDir(this._log), ...findMostRecentCliFile(this._log)];
-		this._log.info(`MetricsService: quick import — enumerated ${candidates.length} candidate file(s) in ${Date.now() - enumStart}ms (blocking fs scan)`);
+		const candidates = findMostRecentWorkspaceDir(this._log);
+		const enumMs = Date.now() - enumStart;
+		const stats: ImportPassStats = { discovered: candidates.length, changed: 0, imported: 0, skipped: 0, turns: 0, ms: 0 };
 		if (candidates.length === 0) {
-			this._log.debug('MetricsService: no files found for quick import');
-			return;
+			this._log.debug('Quick import: no recent session files found');
+			return stats;
 		}
 
 		const startTime = Date.now();
-		let imported = 0;
-		let parseMs = 0;
-
 		try {
-			await this._db.runInTransaction(async () => {
-				for (const c of candidates) {
-					const parseStart = Date.now();
-					const parsed = parseAnySessionFile(c.path);
-					parseMs += Date.now() - parseStart;
-					if (!parsed) { continue; }
+			for (const c of candidates) {
+				// changed-only: skip files already imported with the current importer version
+				const existing = await this._db.getProcessedFile(c.path);
+				if (existing && existing.file_size === c.size && (existing.importer_version ?? 0) >= IMPORTER_VERSION) {
+					stats.skipped++;
+					continue;
+				}
+				stats.changed++;
 
-					// Estimate costs for each request
-					for (const req of parsed.turnRows) {
-						req.estimated_cost_usd = estimateCost(
-							req.prompt_tokens,
-							req.completion_tokens,
-							0,
-							resolveModelPricingKey(req.model_id)
-						).totalCost;
-						if (req.vendor === 'copilot' && req.copilot_credits == null) {
-							req.copilot_credits = estimateCopilotCredits(req.model_id, req.prompt_tokens, req.completion_tokens);
-						}
-					}
+				const parsed = parseAnySessionFile(c.path);
+				if (!parsed) {
+					// Draft/empty session file — remember it as processed so it is not
+					// re-parsed every pass; any future append changes the size and the
+					// normal change detection picks it up again.
+					await this._db.markFileProcessed(c.path, c.size, c.mtime, '');
+					continue;
+				}
 
+				// Estimate per-turn costs at official API list prices. Requests whose
+				// model has no confirmable official price keep both cost columns null
+				// (shown as N/A in UI). DeepSeek applies timestamp-based peak/off-peak rules.
+				for (const req of parsed.turnRows) {
+					const costEstimate = estimateTurnCost(
+						req.prompt_tokens,
+						req.completion_tokens,
+						0,
+						req.model_id,
+						req.timestamp
+					);
+					req.estimated_cost_usd = costEstimate && costEstimate.currency === 'USD' ? costEstimate.total : null;
+					req.estimated_cost_cny = costEstimate && costEstimate.currency === 'CNY' ? costEstimate.total : null;
+				}
+
+				await this._db.runInTransaction(async () => {
 					await this._db.upsertSession(parsed.sessionRow);
 					for (const req of parsed.turnRows) {
 						await this._db.upsertTurn(req);
 					}
-					await this._db.markFileProcessed(c.path, parsed.fileSize, parsed.fileMtime, parsed.fileHash);
-					imported++;
-				}
-			});
+					await this._db.markFileProcessed(parsed.filePath, parsed.fileSize, parsed.fileMtime, parsed.fileHash);
+				});
+				stats.imported++;
+				stats.turns += parsed.turnRows.length;
+
+				// Yield to the event loop between files so the UI stays responsive.
+				await new Promise<void>(r => setImmediate(r));
+			}
 		} catch (err) {
-			this._log.warn(`MetricsService: quick import failed: ${err instanceof Error ? err.message : String(err)}`);
-			return;
+			this._log.warn(`Quick import failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
-		const elapsed = Date.now() - startTime;
-		this._log.info(`MetricsService: quick import done — ${imported} files in ${elapsed}ms (parsing: ${parseMs}ms blocking, remainder: async DB I/O)`);
+		stats.ms = Date.now() - startTime;
+		if (stats.imported > 0) {
+			this._log.info(`Quick import: ${stats.imported} file(s), ${stats.turns} turn(s) in ${stats.ms}ms (${stats.discovered} recent discovered in ${enumMs}ms, ${stats.skipped} unchanged)`);
+		} else {
+			this._log.debug(`Quick import: nothing changed (${stats.discovered} recent files, all unchanged)`);
+		}
+		return stats;
 	}
 
 	// ── Layer 2: Background catch-up (async, ~2-5s) ─────────────────────
 
-	async backgroundImport(): Promise<void> {
-		const days = this._backfillDays();
+	async backgroundImport(): Promise<ImportPassStats> {
 		const startTime = Date.now();
+		const stats: ImportPassStats = { discovered: 0, changed: 0, imported: 0, skipped: 0, turns: 0, ms: 0 };
 
-		// Use setImmediate to yield between batches
-		await new Promise<void>(resolve => {
-			setImmediate(async () => {
-				try {
-					// Synchronous fs.readdirSync/statSync walk over every workspaceStorage
-					// root — blocks the extension host thread for its full duration.
-					const enumStart = Date.now();
-					const allFiles = [...enumerateAllJsonlFiles(this._log), ...enumerateAllCliFiles(this._log)];
-					const enumMs = Date.now() - enumStart;
-					if (allFiles.length === 0) {
-						this._log.debug(`MetricsService: no files for background import (enumeration took ${enumMs}ms)`);
-						resolve();
-						return;
-					}
+		// Synchronous fs.readdirSync/statSync walk — keep it brief; files are
+		// filtered by mtime/size before any parsing happens.
+		const enumStart = Date.now();
+		const allFiles = enumerateAllJsonlFiles(this._log);
+		const enumMs = Date.now() - enumStart;
+		stats.discovered = allFiles.length;
+		if (allFiles.length === 0) {
+			this._log.debug('Background sync: no session files discovered');
+			return stats;
+		}
 
-					const diffStart = Date.now();
-					const changedFiles = await this._db.findChangedFiles(allFiles);
-					const diffMs = Date.now() - diffStart;
-					this._log.info(`MetricsService: background import — ${allFiles.length} files total, ${changedFiles.length} changed (enumeration: ${enumMs}ms blocking, diff query: ${diffMs}ms async)`);
+		const changedFiles = await this._db.findChangedFiles(allFiles);
+		stats.changed = changedFiles.length;
+		stats.skipped = allFiles.length - changedFiles.length;
+		this._log.debug(`Background sync: ${allFiles.length} file(s) discovered (${enumMs}ms), ${changedFiles.length} changed, ${stats.skipped} unchanged`);
 
-					let imported = 0;
-					let parseMs = 0;
-					const BATCH_SIZE = 10;
+		const BATCH_SIZE = 10;
+		for (let i = 0; i < changedFiles.length; i += BATCH_SIZE) {
+			const batch = changedFiles.slice(i, i + BATCH_SIZE);
 
-					for (let i = 0; i < changedFiles.length; i += BATCH_SIZE) {
-						const batch = changedFiles.slice(i, i + BATCH_SIZE);
-
-						try {
-							await this._db.runInTransaction(async () => {
-								for (const fp of batch) {
-									const parseStart = Date.now();
-									const parsed = parseAnySessionFile(fp);
-									parseMs += Date.now() - parseStart;
-									if (!parsed) { continue; }
-
-									for (const req of parsed.turnRows) {
-										req.estimated_cost_usd = estimateCost(
-											req.prompt_tokens,
-											req.completion_tokens,
-											0,
-											resolveModelPricingKey(req.model_id)
-										).totalCost;
-										if (req.vendor === 'copilot' && req.copilot_credits == null) {
-											req.copilot_credits = estimateCopilotCredits(req.model_id, req.prompt_tokens, req.completion_tokens);
-										}
-									}
-
-									await this._db.upsertSession(parsed.sessionRow);
-									for (const req of parsed.turnRows) {
-										await this._db.upsertTurn(req);
-									}
-									await this._db.markFileProcessed(parsed.filePath, parsed.fileSize, parsed.fileMtime, parsed.fileHash);
-									imported++;
-								}
-							});
-						} catch (err) {
-							this._log.warn(`MetricsService: batch ${i / BATCH_SIZE + 1} failed: ${err instanceof Error ? err.message : String(err)}`);
+			try {
+				await this._db.runInTransaction(async () => {
+					for (const fp of batch) {
+						const parsed = parseAnySessionFile(fp);
+						if (!parsed) {
+							// Draft/empty file — mark as processed (see quickImport) so it is
+							// skipped until it actually grows.
+							try {
+								const st = fs.statSync(fp);
+								await this._db.markFileProcessed(fp, st.size, st.mtimeMs, '');
+							} catch { /* file vanished */ }
+							continue;
 						}
 
-						// Yield to event loop every batch
-						await new Promise<void>(r => setImmediate(r));
-					}
+						for (const req of parsed.turnRows) {
+							const costEstimate = estimateTurnCost(
+								req.prompt_tokens,
+								req.completion_tokens,
+								0,
+								req.model_id,
+								req.timestamp
+							);
+							req.estimated_cost_usd = costEstimate && costEstimate.currency === 'USD' ? costEstimate.total : null;
+							req.estimated_cost_cny = costEstimate && costEstimate.currency === 'CNY' ? costEstimate.total : null;
+						}
 
-					const elapsed = Date.now() - startTime;
-					this._log.info(`MetricsService: background import done — ${imported} files imported in ${elapsed}ms total (parsing: ${parseMs}ms blocking, remainder: async DB I/O + setImmediate yields)`);
-				} catch (err) {
-					this._log.warn(`MetricsService: background import failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-				resolve();
-			});
-		});
+						await this._db.upsertSession(parsed.sessionRow);
+						for (const req of parsed.turnRows) {
+							await this._db.upsertTurn(req);
+						}
+						await this._db.markFileProcessed(parsed.filePath, parsed.fileSize, parsed.fileMtime, parsed.fileHash);
+						stats.imported++;
+						stats.turns += parsed.turnRows.length;
+					}
+				});
+			} catch (err) {
+				this._log.warn(`Background sync: batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+
+			// Yield between batches to keep the extension host responsive.
+			await new Promise<void>(r => setImmediate(r));
+		}
+
+		stats.ms = Date.now() - startTime;
+		this._log.info(`Background sync: ${stats.changed} changed session(s), ${stats.turns} turn(s), ${stats.ms}ms (${stats.discovered} discovered, ${stats.skipped} unchanged, enum ${enumMs}ms)`);
+		return stats;
 	}
 
 	// ── Layer 3: Incremental file import (for fs.watch) ──────────────────
@@ -395,7 +456,7 @@ export class MetricsService implements vscode.Disposable {
 			if (stat.size === 0) { return false; }
 
 			const existing = await this._db.getProcessedFile(filePath);
-			if (existing && existing.file_size === stat.size) {
+			if (existing && existing.file_size === stat.size && (existing.importer_version ?? 0) >= IMPORTER_VERSION) {
 				this._log.debug(`MetricsService: skipped ${path.basename(filePath)} (already processed, size=${stat.size})`);
 				return false;
 			}
@@ -405,18 +466,23 @@ export class MetricsService implements vscode.Disposable {
 			const parseStart = Date.now();
 			const parsed = parseAnySessionFile(filePath);
 			const parseMs = Date.now() - parseStart;
-			if (!parsed) { return false; }
+			if (!parsed) {
+				// Draft/empty file — mark processed (see quickImport) and report
+				// "not imported" so no live event is emitted.
+				await this._db.markFileProcessed(filePath, stat.size, stat.mtimeMs, '');
+				return false;
+			}
 
 			for (const req of parsed.turnRows) {
-				req.estimated_cost_usd = estimateCost(
+				const costEstimate = estimateTurnCost(
 					req.prompt_tokens,
 					req.completion_tokens,
 					0,
-					resolveModelPricingKey(req.model_id)
-				).totalCost;
-				if (req.vendor === 'copilot' && req.copilot_credits == null) {
-					req.copilot_credits = estimateCopilotCredits(req.model_id, req.prompt_tokens, req.completion_tokens);
-				}
+					req.model_id,
+					req.timestamp
+				);
+				req.estimated_cost_usd = costEstimate && costEstimate.currency === 'USD' ? costEstimate.total : null;
+				req.estimated_cost_cny = costEstimate && costEstimate.currency === 'CNY' ? costEstimate.total : null;
 			}
 
 			await this._db.runInTransaction(async () => {
@@ -428,7 +494,7 @@ export class MetricsService implements vscode.Disposable {
 			});
 
 			const elapsed = Date.now() - startTime;
-			this._log.info(`MetricsService: imported ${path.basename(filePath)} (${parsed.turnRows.length} requests) in ${elapsed}ms (parsing: ${parseMs}ms blocking, remainder: async DB I/O)`);
+			this._log.debug(`Imported ${path.basename(filePath)} (${parsed.turnRows.length} requests) in ${elapsed}ms (parsing: ${parseMs}ms)`);
 			return true;
 		} catch (err) {
 			this._log.warn(`MetricsService: import failed for ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
@@ -439,19 +505,18 @@ export class MetricsService implements vscode.Disposable {
 	// ── Rebuild ──────────────────────────────────────────────────────────
 
 	// Rebuild all data from disk within the configured backfill window.
-	// Uses the copilotAlternatives.tokenUsage.backfillDays setting.
+	// Uses the modelMeter.tokenUsage.backfillDays setting.
 	async rebuildAll(): Promise<void> {
 		const days = this._backfillDays();
 		const startTime = Date.now();
-		this._log.info(`MetricsService: rebuilding all data (backfill: ${days} days)...`);
+		this._log.info(`Rebuilding all data (backfill: ${days} days)...`);
 		await this._db.clearAllData();
 
-		// Synchronous fs.readdirSync/statSync walk — blocks the extension host
-		// thread for its full duration.
+		// Synchronous fs.readdirSync/statSync walk.
 		const enumStart = Date.now();
-		const allFiles = [...enumerateAllJsonlFiles(this._log), ...enumerateAllCliFiles(this._log)];
+		const allFiles = enumerateAllJsonlFiles(this._log);
 		const enumMs = Date.now() - enumStart;
-		this._log.info(`MetricsService: rebuilding from ${allFiles.length} files (enumeration: ${enumMs}ms blocking)`);
+		this._log.debug(`Rebuilding from ${allFiles.length} files (enumeration: ${enumMs}ms)`);
 
 		const BATCH_SIZE = 10;
 		let imported = 0;
@@ -466,18 +531,22 @@ export class MetricsService implements vscode.Disposable {
 							const parseStart = Date.now();
 							const parsed = parseAnySessionFile(c.path);
 							parseMs += Date.now() - parseStart;
-							if (!parsed) { continue; }
+							if (!parsed) {
+								// Draft/empty file — record it so the next rebuild diff is clean.
+								await this._db.markFileProcessed(c.path, c.size, c.mtime, '');
+								continue;
+							}
 
 							for (const req of parsed.turnRows) {
-								req.estimated_cost_usd = estimateCost(
+								const costEstimate = estimateTurnCost(
 									req.prompt_tokens,
 									req.completion_tokens,
 									0,
-									resolveModelPricingKey(req.model_id)
-								).totalCost;
-								if (req.vendor === 'copilot' && req.copilot_credits == null) {
-									req.copilot_credits = estimateCopilotCredits(req.model_id, req.prompt_tokens, req.completion_tokens);
-								}
+									req.model_id,
+									req.timestamp
+								);
+								req.estimated_cost_usd = costEstimate && costEstimate.currency === 'USD' ? costEstimate.total : null;
+								req.estimated_cost_cny = costEstimate && costEstimate.currency === 'CNY' ? costEstimate.total : null;
 							}
 
 							await this._db.upsertSession(parsed.sessionRow);
@@ -496,7 +565,42 @@ export class MetricsService implements vscode.Disposable {
 		}
 
 		const elapsed = Date.now() - startTime;
-		this._log.info(`MetricsService: rebuild complete — ${imported} files imported in ${elapsed}ms total (enumeration: ${enumMs}ms + parsing: ${parseMs}ms blocking, remainder: async DB I/O + setImmediate yields)`);
+		this._log.info(`Rebuild complete: ${imported} file(s) imported in ${elapsed}ms (enumeration: ${enumMs}ms)`);
+	}
+
+	// ── Diagnostics (used by the “Token 用量诊断” command) ────────────
+
+	/**
+	 * Full diagnostic dump: storage roots, file discovery, changed-file diff,
+	 * processed_files importer versions and unpriced (N/A) models.
+	 * Returned as plain lines so the caller decides where to print them.
+	 */
+	async getDiagnostics(): Promise<string[]> {
+		const lines: string[] = [];
+		const home = os.homedir();
+
+		const wsRoots = getWorkspaceStorageRoots(home);
+		const wsExisting = wsRoots.filter(r => fs.existsSync(r));
+		const ewRoots = getEmptyWindowSessionRoots(home);
+		const ewExisting = ewRoots.filter(r => fs.existsSync(r));
+		lines.push(`Roots: workspaceStorage ${wsExisting.length}/${wsRoots.length} exist; emptyWindow ${ewExisting.length}/${ewRoots.length} exist`);
+		for (const r of wsExisting) { lines.push(`  [workspace] ${r}`); }
+		for (const r of ewExisting) { lines.push(`  [emptyWindow] ${r}`); }
+
+		const files = enumerateAllJsonlFiles(this._log);
+		lines.push(`Discovered (backfill window): ${files.length} jsonl file(s)`);
+		const changed = await this._db.findChangedFiles(files);
+		lines.push(`Changed vs processed_files: ${changed.length} (importer version ${IMPORTER_VERSION})`);
+		for (const fp of changed.slice(0, 12)) { lines.push(`  ~ ${fp}`); }
+		if (changed.length > 12) { lines.push(`  … and ${changed.length - 12} more`); }
+
+		const pf = await this._db.getProcessedFileStats();
+		lines.push(`processed_files: total=${pf.total}, current=${pf.current}, stale=${pf.stale} (stale will be re-parsed once by the background sync)`);
+
+		const unpriced = await this._db.getUnpricedModels();
+		lines.push(`Unpriced (N/A) turns by model: ${unpriced.reduce((s, u) => s + u.n, 0)}`);
+		for (const u of unpriced.slice(0, 15)) { lines.push(`  ${u.model_id} (vendor=${u.vendor}) ×${u.n}`); }
+		return lines;
 	}
 
 	// ── Dashboard queries ────────────────────────────────────────────────
@@ -553,35 +657,6 @@ export class MetricsService implements vscode.Disposable {
 	async getAllVendors(): Promise<string[]> {
 		const vendors = await this._db.getVendorBreakdown(30);
 		return vendors.map(v => v.vendor).sort();
-	}
-
-	/**
-	 * Copilot-usage detection flags, computed from all-time distinct vendors (not
-	 * time-windowed): `copilotDetected` is true if any request ever used the
-	 * `copilot` vendor; `allCopilot` is true if `copilot` is the ONLY vendor used.
-	 */
-	async getVendorUsageFlags(): Promise<{ copilotDetected: boolean; allCopilot: boolean }> {
-		const vendors = await this._db.getDistinctVendors();
-		const copilotDetected = vendors.includes('copilot');
-		const allCopilot = copilotDetected && vendors.length === 1;
-		return { copilotDetected, allCopilot };
-	}
-
-	/** Estimated GitHub Copilot AI credits used since `cycleStartMs` (defaults to start of current calendar month). */
-	async getCopilotCreditsSummary(cycleStartMs?: number): Promise<CopilotCreditsSummary> {
-		const start = cycleStartMs ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
-		return this._db.getCopilotCreditsSummary(start);
-	}
-
-	/** Rolling 24h / 7d / 30d Copilot credit totals, for tooltip and dashboard breakdowns. */
-	async getCopilotCreditsWindows(): Promise<{ day: CopilotCreditsSummary; week: CopilotCreditsSummary; month: CopilotCreditsSummary }> {
-		const now = Date.now();
-		const [day, week, month] = await Promise.all([
-			this._db.getCopilotCreditsSummary(now - 24 * 60 * 60 * 1000),
-			this._db.getCopilotCreditsSummary(now - 7 * 24 * 60 * 60 * 1000),
-			this._db.getCopilotCreditsSummary(now - 30 * 24 * 60 * 60 * 1000),
-		]);
-		return { day, week, month };
 	}
 
 	/** Daily totals grouped by vendor, optionally filtered to a single vendor. */

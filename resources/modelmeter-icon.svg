@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+	<defs>
+		<linearGradient id="mm-bg" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0" stop-color="#1E2A78"/>
+			<stop offset="1" stop-color="#4F46E5"/>
+		</linearGradient>
+	</defs>
+	<!-- Brand tile -->
+	<rect width="256" height="256" rx="56" fill="url(#mm-bg)"/>
+	<!-- Meter arc -->
+	<path d="M56 128a72 72 0 0 1 144 0" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+	<!-- Needle -->
+	<path d="M128 128 176 80" stroke="#22D3EE" stroke-width="16" stroke-linecap="round"/>
+	<circle cx="128" cy="128" r="11" fill="#FFFFFF"/>
+	<!-- Rising usage bars -->
+	<rect x="88" y="176" width="24" height="30" rx="12" fill="#FFFFFF" opacity="0.85"/>
+	<rect x="120" y="164" width="24" height="42" rx="12" fill="#FFFFFF"/>
+	<rect x="152" y="150" width="24" height="56" rx="12" fill="#22D3EE"/>
+</svg>

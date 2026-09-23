@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TokenUsageTracker } from './tokenUsageTracker';
-import { formatTokenCount, formatCost, formatCostCompact } from './tokenCostEstimator';
-import { formatCredits } from './copilotCreditEstimator';
+import { formatTokenCount, combineToCny, localDateKey } from './tokenCostEstimator';
+import { formatCnyUi, AMOUNT_FMT_JS } from './amountFormat';
 
 // ─── Vendor color palette ─────────────────────────────────────────────────────
 
@@ -22,6 +22,12 @@ const VENDOR_COLORS: Record<string, string> = {
 	zhipu: '#f59e0b',
 	moonshot: '#14b8a6',
 	baidu: '#ef4444',
+	Qwen: '#8b5cf6',
+	'RedNotes Dots AI': '#ec4899',
+	Nova: '#06b6d4',
+	'AMD Cloud': '#84cc16',
+	'AMD Cloud(DeepSeek-V4-Flash)': '#a3e635',
+	'AMD-(deepseek-v4-flash)': '#a3a3a3',
 	unknown: '#94a3b8',
 };
 
@@ -90,9 +96,10 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
 .chart-wrap canvas{width:100%!important;height:100%!important}
 .ch2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 @media(max-width:700px){.ch2{grid-template-columns:1fr}}
-.tgl{display:flex;gap:2px;background:var(--bg);border-radius:5px;padding:2px;border:1px solid var(--border)}
-.tgl button{padding:3px 10px;font-size:10px;font-weight:500;border:none;border-radius:3px;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--font)}
+.tgl{display:flex;gap:2px;background:var(--bg);border-radius:5px;padding:2px;border:1px solid var(--border);white-space:nowrap}
+.tgl button{padding:3px 10px;font-size:10px;font-weight:500;border:none;border-radius:3px;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--font);white-space:nowrap;flex:0 0 auto}
 .tgl button.on{background:var(--accent);color:#fff}
+.tgl button:focus-visible{outline:1px solid var(--vscode-focusBorder,#007fd4);outline-offset:1px}
 .flt{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .flt label{display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg)}
 .flt label.chk{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -105,8 +112,9 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
 .pie-card .pie-chart{position:relative;height:160px}
 
 /* Date Range Picker */
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}
-.drp{display:flex;align-items:center;gap:6px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.drp{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:max-content}
+@media(max-width:760px){.hdr .drp{width:100%}}
 .drp-date{padding:3px 8px;font-size:10px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-family:var(--font);display:none}
 .drp-date:focus{border-color:var(--accent);outline:none}
 `;
@@ -116,7 +124,7 @@ const PROMPT_CATEGORY_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef
 // ─── ModelDashboard ───────────────────────────────────────────────────────────
 
 export class ModelDashboard {
-	static readonly viewType = 'copilotAlternatives.modelUsage';
+	static readonly viewType = 'modelMeter.model';
 	static currentPanel: ModelDashboard | undefined;
 	private readonly _panel: vscode.WebviewPanel;
 	private readonly _disposables: vscode.Disposable[] = [];
@@ -136,6 +144,11 @@ export class ModelDashboard {
 				this._days = msg.days ?? 30;
 				this._rangeMode = msg.mode ?? 'month';
 				this._sinceDate = msg.sinceDate ?? '';
+				this.update();
+			}
+			if (msg.type === 'vendorFilter') {
+				const v = typeof msg.vendor === 'string' && msg.vendor.length > 0 ? msg.vendor : undefined;
+				this._activeVendor = v;
 				this.update();
 			}
 		}, null, this._disposables);
@@ -167,7 +180,6 @@ export class ModelDashboard {
     private async _render(): Promise<string> {
 		const vendor = this._activeVendor;
 		const modelId = this._activeModel;
-		const isCopilot = vendor === 'copilot';
         const s = await this._tracker.metricsService.getModelViewSummary(vendor, modelId, this._days);
 		const models = s.models;
 		const promptBreakdowns = s.promptBreakdowns;
@@ -182,23 +194,24 @@ export class ModelDashboard {
 		let totalTokens: number;
 		let totalRequests: number;
 		let totalCost: number;
-		let totalCredits: number;
+		let totalUnpriced: number;
 		if (modelId) {
 			const m = models.find(m => m.modelId === modelId);
 			totalPromptTokens = m?.promptTokens ?? 0;
 			totalCompletionTokens = m?.completionTokens ?? 0;
 			totalTokens = totalPromptTokens + totalCompletionTokens;
 			totalRequests = m?.requestCount ?? 0;
-			totalCost = m?.costUsd ?? 0;
-			totalCredits = m?.credits ?? 0;
+			totalCost = m ? combineToCny(m.costUsd, m.costCny) : 0;
+			totalUnpriced = m?.unpricedCount ?? 0;
 		} else {
 			totalPromptTokens = models.reduce((s, m) => s + m.promptTokens, 0);
 			totalCompletionTokens = models.reduce((s, m) => s + m.completionTokens, 0);
 			totalTokens = totalPromptTokens + totalCompletionTokens;
 			totalRequests = models.reduce((s, m) => s + m.requestCount, 0);
-			totalCost = models.reduce((s, m) => s + m.costUsd, 0);
-			totalCredits = models.reduce((s, m) => s + m.credits, 0);
+			totalCost = models.reduce((s, m) => s + combineToCny(m.costUsd, m.costCny), 0);
+			totalUnpriced = models.reduce((s, m) => s + m.unpricedCount, 0);
 		}
+		const allUnpriced = totalRequests > 0 && totalUnpriced >= totalRequests;
 
 
 
@@ -213,23 +226,26 @@ export class ModelDashboard {
 			dailyCompletionMap[d.date] = (dailyCompletionMap[d.date] || 0) + d.totalCompletionTokens;
 			dailyRequestsMap[d.date] = (dailyRequestsMap[d.date] || 0) + d.requestCount;
 		}
-		// Generate full date range for the selected period
+
+		// Generate full date range for the selected period (local-time keys)
 		const rangeDates: string[] = [];
 		for (let i = this._days - 1; i >= 0; i--) {
 			const d = new Date();
 			d.setDate(d.getDate() - i);
-			rangeDates.push(d.toISOString().split('T')[0]);
+			rangeDates.push(localDateKey(d));
 		}
 
-		// Model entries for table
+		// Model entries for table (CNY cost; unpriced models show N/A)
 		const modelEntries = models.map(m => ({
 			modelId: m.modelId,
-			vendor: m.modelId.includes('/') ? m.modelId.split('/')[0] : (vendor ?? 'copilot'),
+			vendor: m.modelId.startsWith('customendpoint/') && m.modelId.split('/').length >= 3
+				? m.modelId.split('/')[1]
+				: (m.modelId.includes('/') ? m.modelId.split('/')[0] : (vendor ?? 'unknown')),
 			promptTokens: m.promptTokens,
 			completionTokens: m.completionTokens,
 			totalTokens: m.promptTokens + m.completionTokens,
-			costUsd: m.costUsd,
-			credits: m.credits,
+			cost: combineToCny(m.costUsd, m.costCny),
+			unpriced: m.unpricedCount >= m.requestCount,
 			requestCount: m.requestCount,
 			inPct: totalTokens > 0 ? m.promptTokens / totalTokens : 0,
 			outPct: totalTokens > 0 ? m.completionTokens / totalTokens : 0,
@@ -249,20 +265,15 @@ export class ModelDashboard {
 			allVendors,
 			activeVendor: vendor ?? null,
 			modelEntries,
-			weekDates: rangeDates.slice(-7).map(d => d.slice(5)),
 			monthDates: rangeDates.map(d => d.slice(5)),
-			weekTokens: rangeDates.slice(-7).map(d => dailyTokensMap[d] || 0),
 			monthTokens: rangeDates.map(d => dailyTokensMap[d] || 0),
-			weekPrompt: rangeDates.slice(-7).map(d => dailyPromptMap[d] || 0),
 			monthPrompt: rangeDates.map(d => dailyPromptMap[d] || 0),
-			weekCompletion: rangeDates.slice(-7).map(d => dailyCompletionMap[d] || 0),
 			monthCompletion: rangeDates.map(d => dailyCompletionMap[d] || 0),
-			weekRequests: rangeDates.slice(-7).map(d => dailyRequestsMap[d] || 0),
 			monthRequests: rangeDates.map(d => dailyRequestsMap[d] || 0),
 			monthDatesFull: rangeDates,
-			topPies: topPies.map(p => ({
+				topPies: topPies.map(p => ({
 				modelId: p.modelId,
-				labels: ['System Instructions', 'Tool Definitions', 'Messages', 'Files', 'Tool Results'],
+				labels: ['系统指令', '工具定义', '对话消息', '文件上下文', '工具结果'],
 				values: [
 					p.avgSystemInstructionsPct,
 					p.avgToolDefinitionsPct,
@@ -273,8 +284,7 @@ export class ModelDashboard {
 			})),
 			hasPromptData,
 			totalTokens, totalPromptTokens, totalCompletionTokens,
-			totalRequests, totalCost, totalCredits, isCopilot,
-			modelCount: models.length,
+			totalRequests, totalCost, modelCount: models.length,
 		});
 
 		return /* html */`<!DOCTYPE html>
@@ -282,64 +292,62 @@ export class ModelDashboard {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>${modelId ? modelId : 'Model Usage'}</title>
+<title>${modelId ? modelId : '模型用量'}</title>
 <style>${SHARED_CSS}</style>
 </head>
 <body>
 <div class="hdr">
   <div>
-    <h1>${modelId ? `<span class="dot" style="background:${vendorColor(vendor ?? 'unknown')}"></span>${modelId}` : 'Model Usage'}</h1>
-    <p class="subtitle">Token usage &amp; prompt breakdown${vendor ? ' — ' + vendor : ''} · Last ${this._days} days</p>
+    <h1>${modelId ? `<span class="dot" style="background:${vendorColor(vendor ?? 'unknown')}"></span>${modelId}` : '模型用量'}</h1>
+    <p class="subtitle">Token 用量与输入上下文构成${vendor ? ' — ' + vendor : ''} · 费用按中国大陆官方 API 标准按量原价估算 · 最近 ${this._days} 天</p>
   </div>
   <div class="drp">
     <div class="tgl" id="tglRange">
-      <button data-r="week" ${this._rangeMode === 'week' ? 'class="on"' : ''}>7 Days</button>
-      <button data-r="month" ${this._rangeMode === 'month' ? 'class="on"' : ''}>30 Days</button>
-      <button data-r="since" ${this._rangeMode === 'since' ? 'class="on"' : ''}>Since…</button>
+      <button data-r="week" title="最近 7 天" aria-pressed="${this._rangeMode === 'week'}" ${this._rangeMode === 'week' ? 'class="on"' : ''}>7 天</button>
+      <button data-r="month" title="最近 30 天" aria-pressed="${this._rangeMode === 'month'}" ${this._rangeMode === 'month' ? 'class="on"' : ''}>30 天</button>
+      <button data-r="since" title="自选开始日期（含当天）" aria-pressed="${this._rangeMode === 'since'}" ${this._rangeMode === 'since' ? 'class="on"' : ''}>自选</button>
     </div>
     <input type="date" id="sinceDate" class="drp-date" value="${this._sinceDate}" style="${this._rangeMode === 'since' ? 'display:inline-block' : ''}" />
   </div>
 </div>
 
-<!-- Vendor filter chips (only when no vendor/model pre-selected) -->
-${!vendor && !modelId ? `<div class="sec">
-  <div class="sec-h"><div class="sec-t">Filter by Vendor</div></div>
+<!-- Vendor filter chips (hidden when a specific model is open) -->
+${!modelId ? `<div class="sec">
+  <div class="sec-h"><div class="sec-t">按厂商筛选</div><span style="font-size:10px;color:var(--muted)">点击筛选下方图表与表格</span></div>
   <div class="flt" id="fltVendors">
-    <label class="chk" data-v=""><input type="radio" name="vf" checked>All</label>
-    ${allVendors.map(v => `<label data-v="${v}"><input type="radio" name="vf"><span class="dot" style="background:${vendorColor(v)}"></span>${v}</label>`).join('')}
+    <label class="${!vendor ? 'chk' : ''}" data-v=""><input type="radio" name="vf">全部</label>
+    ${allVendors.map(v => `<label class="${vendor === v ? 'chk' : ''}" data-v="${v}"><input type="radio" name="vf"><span class="dot" style="background:${vendorColor(v)}"></span>${v}</label>`).join('')}
   </div>
 </div>` : ''}
 
 <!-- Summary Cards -->
 <div class="grid4">
-  <div class="card"><div class="lbl">Tokens</div><div class="val">${formatTokenCount(totalTokens)}</div><div class="det">${formatTokenCount(totalPromptTokens)} in / ${formatTokenCount(totalCompletionTokens)} out</div></div>
-  <div class="card"><div class="lbl">Requests</div><div class="val">${totalRequests.toLocaleString()}</div><div class="det">${modelId ? `Model: ${modelId}` : `${models.length} model(s)`}</div></div>
-  <div class="card"><div class="lbl">Models</div><div class="val">${models.length}</div><div class="det">Active in last ${this._days} days</div></div>
-  ${isCopilot
-				? `<div class="card"><div class="lbl">AI Credits (est.)</div><div class="val">${formatCredits(totalCredits)}</div><div class="det">Estimated GitHub Copilot credits</div></div>`
-				: `<div class="card"><div class="lbl">Estimate</div><div class="val">${formatCost(totalCost)}</div><div class="det">Estimated from token pricing</div></div>`}
+  <div class="card"><div class="lbl">Token 用量</div><div class="val">${formatTokenCount(totalTokens)}</div><div class="det">输入 ${formatTokenCount(totalPromptTokens)} / 输出 ${formatTokenCount(totalCompletionTokens)}</div></div>
+  <div class="card"><div class="lbl">请求次数</div><div class="val">${totalRequests.toLocaleString()}</div><div class="det">${modelId ? `模型：${modelId}` : `共 ${models.length} 个模型`}</div></div>
+  <div class="card"><div class="lbl">模型数</div><div class="val">${models.length}</div><div class="det">最近 ${this._days} 天内活跃</div></div>
+  <div class="card"><div class="lbl">预估费用</div><div class="val">${allUnpriced ? '暂无价格' : formatCnyUi(totalCost)}</div><div class="det">${allUnpriced ? '这些模型暂无价格数据' : '基于官方 API 原价估算'}</div></div>
 </div>
 
-<!-- Usage Over Time -->
+<!-- 用量趋势 -->
 <div class="sec">
   <div class="sec-h">
-    <div class="sec-t">Usage Over Time</div>
+    <div class="sec-t">用量趋势</div>
   </div>
   <div class="ch2">
-    <div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">Tokens (Input / Output)</div><div class="chart-wrap"><canvas id="tokenChart"></canvas></div></div>
-    <div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">Requests</div><div class="chart-wrap"><canvas id="requestChart"></canvas></div></div>
+    <div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">Token（输入 / 输出）</div><div class="chart-wrap"><canvas id="tokenChart"></canvas></div></div>
+    <div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">请求次数</div><div class="chart-wrap"><canvas id="requestChart"></canvas></div></div>
   </div>
 </div>
 
 <!-- Model Table -->
 ${!modelId ? `<div class="sec">
-  <div class="sec-h"><div class="sec-t">Model Breakdown</div><span style="font-size:10px;color:var(--muted)">Click column header to sort</span></div>
+  <div class="sec-h"><div class="sec-t">模型明细</div><span style="font-size:10px;color:var(--muted)">点击列标题排序</span></div>
   <table class="tbl" id="modelTbl">
     <thead><tr>
-      <th data-sort="modelId">Model</th><th data-sort="requestCount">Requests</th>
-      <th data-sort="totalTokens" class="sorted">Total Tokens</th>
-      <th data-sort="promptTokens">Input</th><th data-sort="completionTokens">Output</th>
-      <th>I/O Ratio</th><th data-sort="${isCopilot ? 'credits' : 'costUsd'}">${isCopilot ? 'AI Credits' : 'Estimate'}</th>
+      <th data-sort="modelId">模型</th><th data-sort="requestCount">请求次数</th>
+      <th data-sort="totalTokens" class="sorted">总 Token</th>
+      <th data-sort="promptTokens">输入</th><th data-sort="completionTokens">输出</th>
+      <th>输入输出比</th><th data-sort="cost">预估费用</th>
     </tr></thead>
     <tbody id="modelTbody">${modelEntries.map(m => `<tr>
       <td><span class="dot" style="background:${vendorColor(m.vendor)}"></span>${m.modelId}</td>
@@ -347,26 +355,26 @@ ${!modelId ? `<div class="sec">
       <td><strong>${formatTokenCount(m.totalTokens)}</strong></td>
       <td>${formatTokenCount(m.promptTokens)}</td><td>${formatTokenCount(m.completionTokens)}</td>
       <td><span class="bar-wrap"><span class="bar-io-track"><span class="bar-io-fill in" style="width:${Math.round(m.inPct * 100)}%"></span></span><span class="bar-io-track"><span class="bar-io-fill out" style="width:${Math.round(m.outPct * 100)}%"></span></span><span style="font-size:9px;color:var(--muted)">${Math.round(m.inPct * 100)}/${Math.round(m.outPct * 100)}</span></span></td>
-      <td>${isCopilot ? formatCredits(m.credits) : formatCostCompact(m.costUsd)}</td>
+      <td>${m.unpriced ? '暂无价格' : formatCnyUi(m.cost)}</td>
     </tr>`).join('')}</tbody>
   </table>
-  ${models.length === 0 ? '<div class="empty">No model data yet.</div>' : ''}
+  ${models.length === 0 ? '<div class="empty">暂无模型数据。</div>' : ''}
 </div>` : ''}
 
 <!-- Prompt Token Breakdown -->
 <div class="sec">
-  <div class="sec-h"><div class="sec-t">Prompt Token Breakdown</div>
-    <span style="font-size:10px;color:var(--muted)">${hasPromptData ? 'System Instructions · Tool Defs · Messages · Files · Tool Results' : 'No prompt breakdown data'}</span></div>
+  <div class="sec-h"><div class="sec-t">输入上下文构成</div>
+    <span style="font-size:10px;color:var(--muted)">${hasPromptData ? '系统指令 · 工具定义 · 对话消息 · 文件上下文 · 工具结果' : '无输入上下文构成数据'}</span></div>
   ${hasPromptData ? `<div class="pie-grid" id="pieGrid">
     ${topPies.map((p, i) => `<div class="pie-card">
       <div class="pie-label">${p.modelId}</div>
       <div class="pie-chart"><canvas id="pie-${i}"></canvas></div>
     </div>`).join('')}
-  </div>` : '<div class="empty">No prompt breakdown data available for this selection.</div>'}
+  </div>` : '<div class="empty">当前选择暂无输入上下文构成数据。</div>'}
 </div>
 
 <script>${chartJsSource()}</script>
-<script>
+<script>${AMOUNT_FMT_JS}
 const D = ${chartData};
 var PROMPT_COLORS = ${JSON.stringify(PROMPT_CATEGORY_COLORS)};
 var _modelEntries = D.modelEntries;
@@ -388,8 +396,8 @@ Chart.defaults.font.size = 10;
 // ── Token Chart ──
 var tCtx = document.getElementById('tokenChart').getContext('2d');
 var tokenChart = new Chart(tCtx,{type:'bar',data:{labels:D.monthDates,datasets:[
-  {label:'Input',data:D.monthPrompt,backgroundColor:'rgba(59,130,246,.7)',borderRadius:3},
-  {label:'Output',data:D.monthCompletion,backgroundColor:'rgba(249,115,22,.7)',borderRadius:3}
+  {label:'输入',data:D.monthPrompt,backgroundColor:'rgba(59,130,246,.7)',borderRadius:3},
+  {label:'输出',data:D.monthCompletion,backgroundColor:'rgba(249,115,22,.7)',borderRadius:3}
 ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:8,padding:10}}},
 scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:function(v){return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v}}}}}});
 
@@ -397,7 +405,7 @@ scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:fu
 if(document.getElementById('requestChart')){
 var rCtx = document.getElementById('requestChart').getContext('2d');
 var requestChart = new Chart(rCtx,{type:'line',data:{labels:D.monthDates,datasets:[
-  {label:'Requests',data:D.monthRequests,borderColor:D.vendor?(D.allVendors.indexOf(D.vendor)>=0?getComputedStyle(document.body).getPropertyValue('--blue').trim():'#f97316'):'#f97316',backgroundColor:'rgba(249,115,22,.15)',fill:true,tension:.3,pointRadius:3,borderWidth:2}
+  {label:'请求次数',data:D.monthRequests,borderColor:D.vendor?(D.allVendors.indexOf(D.vendor)>=0?getComputedStyle(document.body).getPropertyValue('--blue').trim():'#f97316'):'#f97316',backgroundColor:'rgba(249,115,22,.15)',fill:true,tension:.3,pointRadius:3,borderWidth:2}
 ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
 scales:{x:{grid:{display:false}},y:{ticks:{callback:function(v){return v>=1e3?(v/1e3).toFixed(1)+'K':v}}}}}});
 }
@@ -427,16 +435,23 @@ function sortModelTable(col){
 function renderTable(){
   document.getElementById('modelTbody').innerHTML = _modelEntries.map(function(m){
     var inPct=(D.totalTokens>0?m.promptTokens/D.totalTokens:0)*100,outPct=(D.totalTokens>0?m.completionTokens/D.totalTokens:0)*100;
-    return '<tr><td><span class="dot" style="background:'+(D.allVendors.includes(m.vendor)?getComputedStyle(document.body).getPropertyValue('--blue').trim():'#94a3b8')+'"></span>'+m.modelId+'</td><td>'+m.requestCount.toLocaleString()+'</td><td><strong>'+_fmt(m.totalTokens)+'</strong></td><td>'+_fmt(m.promptTokens)+'</td><td>'+_fmt(m.completionTokens)+'</td><td><span class="bar-wrap"><span class="bar-io-track"><span class="bar-io-fill in" style="width:'+Math.round(inPct)+'%"></span></span><span class="bar-io-track"><span class="bar-io-fill out" style="width:'+Math.round(outPct)+'%"></span></span><span style="font-size:9px;color:var(--muted)">'+Math.round(inPct)+'/'+Math.round(outPct)+'</span></span></td><td>'+_fmtC(D.isCopilot ? m.credits : m.costUsd)+'</td></tr>';
+    return '<tr><td><span class="dot" style="background:'+(D.allVendors.includes(m.vendor)?getComputedStyle(document.body).getPropertyValue('--blue').trim():'#94a3b8')+'"></span>'+m.modelId+'</td><td>'+m.requestCount.toLocaleString()+'</td><td><strong>'+_fmt(m.totalTokens)+'</strong></td><td>'+_fmt(m.promptTokens)+'</td><td>'+_fmt(m.completionTokens)+'</td><td><span class="bar-wrap"><span class="bar-io-track"><span class="bar-io-fill in" style="width:'+Math.round(inPct)+'%"></span></span><span class="bar-io-track"><span class="bar-io-fill out" style="width:'+Math.round(outPct)+'%"></span></span><span style="font-size:9px;color:var(--muted)">'+Math.round(inPct)+'/'+Math.round(outPct)+'</span></span></td><td>'+_fmtUnpriced(m)+'</td></tr>';
   }).join('');
 }
 function _fmt(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':String(n);}
-function _fmtC(n){return D.isCopilot ? _fmtCredits(n) : ('$'+n.toFixed(4));}
-function _fmtCredits(n){return n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n));}
+function _fmtUnpriced(m){return m.unpriced ? '暂无价格' : fmtCnyUi(m.cost);}
 function updateSortHeaders(){document.querySelectorAll('#modelTbl th').forEach(function(th){th.classList.remove('sorted');if(th.dataset.sort===sortCol)th.classList.add('sorted');});}
 document.querySelectorAll('#modelTbl th[data-sort]').forEach(function(th){th.addEventListener('click',function(){sortModelTable(th.dataset.sort);});});
 }
 }catch(e){console.error('[ModelDashboard] Chart init error:',e);document.body.insertAdjacentHTML('beforeend','<div style="color:red;padding:10px">Chart error: '+e.message+'</div>');}
+
+// ── Vendor filter chips ──
+var flt = document.getElementById('fltVendors');
+if(flt){ flt.addEventListener('click', function(e){
+  var lbl = e.target.closest('label');
+  if(!lbl) return;
+  _vscode.postMessage({ type: 'vendorFilter', vendor: lbl.dataset.v || '' });
+});}
 
 // ── Date Range Picker (always registered) ──
 var _dateInput = document.getElementById('sinceDate');
@@ -444,8 +459,9 @@ var tgl = document.getElementById('tglRange');
 if(tgl){tgl.addEventListener('click',function(e){
   var btn = e.target.closest('button');
   if(!btn) return;
-  tgl.querySelectorAll('button').forEach(function(b){b.classList.remove('on');});
+  tgl.querySelectorAll('button').forEach(function(b){b.classList.remove('on');b.setAttribute('aria-pressed','false');});
   btn.classList.add('on');
+  btn.setAttribute('aria-pressed','true');
   var r = btn.dataset.r;
   if(r === 'week') {
     _dateInput.style.display = 'none';

@@ -2,9 +2,14 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "npm: compile",
-			"type": "npm",
-			"script": "compile",
+			"label": "tsc: build",
+			"type": "process",
+			"command": "node",
+			"args": [
+				"${workspaceFolder}/node_modules/typescript/bin/tsc",
+				"-p",
+				"${workspaceFolder}/tsconfig.json"
+			],
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -16,9 +21,15 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"label": "npm: watch",
-			"type": "npm",
-			"script": "watch",
+			"label": "tsc: watch",
+			"type": "process",
+			"command": "node",
+			"args": [
+				"${workspaceFolder}/node_modules/typescript/bin/tsc",
+				"-p",
+				"${workspaceFolder}/tsconfig.json",
+				"--watch"
+			],
 			"group": "build",
 			"isBackground": true,
 			"presentation": {

@@ -5,10 +5,8 @@
 
 import * as vscode from 'vscode';
 import { TokenUsageTracker } from './tokenUsageTracker';
-import { formatCostCompact, formatTokenCount } from './tokenCostEstimator';
-import { formatCredits } from './copilotCreditEstimator';
-import { DashboardSummary, CopilotCreditsSummary } from './metricsDatabase';
-import { CopilotCreditWindows } from './creditsSectionHtml';
+import { formatCnyCompact, formatTokenCount, combineToCny } from './tokenCostEstimator';
+import { DashboardSummary } from './metricsDatabase';
 
 export class TokenUsageStatusBar implements vscode.Disposable {
 	private readonly _item: vscode.StatusBarItem;
@@ -17,7 +15,7 @@ export class TokenUsageStatusBar implements vscode.Disposable {
 
 	constructor(private readonly _tracker: TokenUsageTracker) {
 		this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
-		this._item.command = 'copilotAlternatives.showTokenUsage';
+		this._item.command = 'modelMeter.showTokenUsage';
 		this._item.text = '$(flame) …';
 		this._item.show();
 		void this._update();
@@ -30,28 +28,12 @@ export class TokenUsageStatusBar implements vscode.Disposable {
 		if (this._refreshing) { this._refreshPending = true; return; }
 		this._refreshing = true;
 		try {
-			const { copilotDetected, allCopilot } = this._tracker.vendorUsageFlags;
 			const summary = await this._tracker.metricsService.getDashboardSummary();
 			const todayTokens = summary.today.totalPromptTokens + summary.today.totalCompletionTokens;
-			const todayCost = summary.today.estimatedCostUsd;
+			const todayCost = combineToCny(summary.today.estimatedCostUsd, summary.today.estimatedCostCny);
 
-			let creditsSummary: CopilotCreditsSummary | undefined;
-			let creditsWindows: CopilotCreditWindows | undefined;
-			if (copilotDetected) {
-				[creditsSummary, creditsWindows] = await Promise.all([
-					this._tracker.metricsService.getCopilotCreditsSummary(),
-					this._tracker.metricsService.getCopilotCreditsWindows(),
-				]);
-			}
-
-			if (allCopilot) {
-				// 100% Copilot usage — $ cost has no meaning; show tokens + credits instead.
-				this._item.text = `$(flame) ${formatTokenCount(todayTokens)} · ${formatCredits(creditsSummary?.totalCredits ?? 0)} cr`;
-			} else {
-				this._item.text = `$(flame) ${formatTokenCount(todayTokens)} ${formatCostCompact(todayCost)}`;
-			}
-
-			this._item.tooltip = this._buildTooltip(summary, { copilotDetected, allCopilot }, creditsSummary, creditsWindows);
+			this._item.text = `$(flame) ${formatTokenCount(todayTokens)} · ${formatCnyCompact(todayCost)}`;
+			this._item.tooltip = this._buildTooltip(summary);
 		} finally {
 			this._refreshing = false;
 			if (this._refreshPending) {
@@ -61,55 +43,26 @@ export class TokenUsageStatusBar implements vscode.Disposable {
 		}
 	}
 
-	private _buildTooltip(
-		summary: DashboardSummary,
-		flags: { copilotDetected: boolean; allCopilot: boolean },
-		creditsSummary: CopilotCreditsSummary | undefined,
-		creditsWindows: CopilotCreditWindows | undefined,
-	): string {
-		const day24 = { tokens: summary.today.totalPromptTokens + summary.today.totalCompletionTokens, cost: summary.today.estimatedCostUsd };
+	private _buildTooltip(summary: DashboardSummary): string {
+		const day24 = { tokens: summary.today.totalPromptTokens + summary.today.totalCompletionTokens, cost: combineToCny(summary.today.estimatedCostUsd, summary.today.estimatedCostCny) };
 		const week = summary.thisWeek.reduce((a, d) => ({
 			tokens: a.tokens + d.totalPromptTokens + d.totalCompletionTokens,
-			cost: a.cost + d.estimatedCostUsd,
+			cost: a.cost + combineToCny(d.estimatedCostUsd, d.estimatedCostCny),
 		}), { tokens: 0, cost: 0 });
 		const month = summary.thisMonth.reduce((a, d) => ({
 			tokens: a.tokens + d.totalPromptTokens + d.totalCompletionTokens,
-			cost: a.cost + d.estimatedCostUsd,
+			cost: a.cost + combineToCny(d.estimatedCostUsd, d.estimatedCostCny),
 		}), { tokens: 0, cost: 0 });
 
-		const lines: string[] = ['Token Usage'];
+		const lines: string[] = ['Token 用量'];
 
-		if (!flags.allCopilot) {
-			lines.push(
-				`in 24 hours: ${formatTokenCount(day24.tokens)}  ${formatCostCompact(day24.cost)}`,
-				`in a week:   ${formatTokenCount(week.tokens)}  ${formatCostCompact(week.cost)}`,
-				`in a month:  ${formatTokenCount(month.tokens)}  ${formatCostCompact(month.cost)}`,
-			);
-		}
+		lines.push(
+			`过去 24 小时：${formatTokenCount(day24.tokens)}  ${formatCnyCompact(day24.cost)}`,
+			`过去 7 天：  ${formatTokenCount(week.tokens)}  ${formatCnyCompact(week.cost)}`,
+			`过去 30 天： ${formatTokenCount(month.tokens)}  ${formatCnyCompact(month.cost)}`,
+		);
 
-		if (flags.copilotDetected) {
-			lines.push('', 'GitHub Copilot credits');
-			if (creditsWindows) {
-				lines.push(
-					`  in 24 hours: ${formatCredits(creditsWindows.day.totalCredits)} cr`,
-					`  in a week:   ${formatCredits(creditsWindows.week.totalCredits)} cr`,
-					`  in a month:  ${formatCredits(creditsWindows.month.totalCredits)} cr`,
-				);
-			}
-			const entitlement = this._tracker.copilotEntitlement;
-			const used = creditsSummary?.totalCredits ?? 0;
-			if (entitlement) {
-				const pct = entitlement.monthlyCreditsIncluded > 0
-					? Math.round((used / entitlement.monthlyCreditsIncluded) * 100)
-					: 0;
-				lines.push(`  ${formatCredits(used)} / ${formatCredits(entitlement.monthlyCreditsIncluded)} credits used (${pct}%) — ${entitlement.planName} plan`);
-			} else {
-				lines.push(`  ${formatCredits(used)} credits used this cycle (plan unknown)`);
-				lines.push('  Run "Sign in with GitHub to Detect Copilot Plan" for your quota');
-			}
-		}
-
-		lines.push('', 'Click to open dashboard');
+		lines.push('', '点击打开用量总览');
 		return lines.join('\n');
 	}
 

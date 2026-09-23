@@ -3,12 +3,12 @@
 	"groups": [
 		{
 			"id": "coding-plans",
-			"name": "Coding Plans",
+			"name": "编程方案",
 			"icon": "symbol-constant",
 			"subgroups": [
 				{
 					"id": "ide-native",
-					"name": "IDE-Native Coding Plans",
+					"name": "原生 IDE 编程方案",
 					"items": [
 						{ "id": "cursor-pro", "name": "Cursor Pro", "price": "$20/mo", "quota": "Usage-based allowance", "features": ["Agent mode", "frontier models (Claude, GPT, Gemini)", "MCP support", "cloud agents"], "url": "https://cursor.com/pricing" },
 						{ "id": "cursor-pro-plus", "name": "Cursor Pro+", "price": "$60/mo", "quota": "3x usage on all OpenAI, Claude, Gemini models", "features": ["Everything in Pro + higher quotas"], "url": "https://cursor.com/pricing" },
@@ -26,7 +26,7 @@
 				},
 				{
 					"id": "cli-native",
-					"name": "CLI-Native Coding Plans",
+					"name": "原生 CLI 编程方案",
 					"items": [
 						{ "id": "codex-chatgpt-go", "name": "Codex (ChatGPT Go)", "price": "$8/mo", "quota": "More messages/uploads, longer memory", "features": ["GPT-5.5 Instant access", "may include ads"], "url": "https://chatgpt.com/codex/pricing/" },
 						{ "id": "codex-chatgpt-plus", "name": "Codex (ChatGPT Plus)", "price": "$20/mo", "quota": "30-150 local messages/5h, 10-60 cloud tasks/5h", "features": ["GPT-5.5 Thinking", "deep research", "projects", "tasks"], "url": "https://chatgpt.com/codex/pricing/" },
@@ -52,7 +52,7 @@
 				},
 				{
 					"id": "multi-model-byok-friendly",
-					"name": "Multi-Model Coding Plans (BYOK-Friendly)",
+					"name": "多模型编程方案（BYOK 友好）",
 					"items": [
 						{ "id": "xiaomi-mimo-lite", "name": "Xiaomi MiMo Lite", "price": "$6/mo", "quota": "4.1B credits", "features": ["OpenClaw", "Claude Code", "OpenCode", "KiloCode", "20% off off-peak (9AM-5PM PDT)"], "models": ["MiMo-V2.5-Pro + 7 other models"], "url": "https://mimo.xiaomi.com" },
 						{ "id": "xiaomi-mimo-standard", "name": "Xiaomi MiMo Standard", "price": "$16/mo", "quota": "11B credits (2.7x Lite)", "features": ["20% off off-peak", "free TTS"], "models": ["Same as Lite"], "url": "https://mimo.xiaomi.com" },
@@ -78,7 +78,7 @@
 				},
 				{
 					"id": "aggregators-plugins",
-					"name": "Aggregators & Plugins",
+					"name": "聚合器与插件",
 					"items": [
 						{ "id": "nous-portal-free", "name": "Nous Portal Free", "price": "$0/mo", "quota": "$0 monthly credits", "features": ["Free models only"], "url": "https://nousresearch.com" },
 						{ "id": "nous-portal-plus", "name": "Nous Portal Plus", "price": "$20/mo", "quota": "$22 monthly credits, $10 rollover cap", "features": ["300+ models", "hosted tool usage"], "url": "https://nousresearch.com" },
@@ -169,7 +169,7 @@
 				},
 				{
 					"id": "free-coding-options",
-					"name": "Free Coding Options",
+					"name": "免费编程选项",
 					"items": [
 						{ "id": "feima-copilot-free", "name": "Feima Copilot", "price": "Free", "quota": "700 weighted requests (1st month), 300/month thereafter", "features": ["Weighted request-based billing", "multiple model tiers"], "url": "https://marketplace.visualstudio.com/items?itemName=feima.copilot-more-llms" },
 						{ "id": "codex-free", "name": "Codex Free", "price": "Free", "quota": "Limited trial access", "features": ["Test Codex capabilities", "GPT-5.5 limited"], "url": "https://chatgpt.com/codex/pricing/" },
@@ -187,13 +187,13 @@
 		},
 		{
 			"id": "ides-editors",
-			"name": "IDEs & Editors",
+			"name": "IDE 与编辑器",
 			"icon": "server",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "IDEs & Editors",
-					"description": "Full AI-native development environments",
+					"name": "IDE 与编辑器",
+					"description": "完整的 AI 原生开发环境",
 					"items": [
 						{ "id": "cursor", "name": "Cursor", "features": ["Agent mode", "multi-file edits", "BYOK", "codebase indexing"], "extras": {"Based On": "VS Code fork", "Free Tier": "Yes (limited)"}, "url": "https://cursor.sh" },
 						{ "id": "antigravity", "name": "Antigravity", "features": ["Google's agent-first IDE", "Gemini 3.1 Pro + multi-model", "parallel multi-agent manager view", "artifact-based task verification"], "extras": {"Based On": "VS Code fork (possibly Windsurf fork)", "Free Tier": "Yes (free preview)"}, "url": "https://antigravity.google" },
@@ -208,13 +208,13 @@
 		},
 		{
 			"id": "cli-agents",
-			"name": "CLI Agents",
+			"name": "CLI 智能体",
 			"icon": "terminal",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "CLI Agents",
-					"description": "Terminal-based and agentic coding tools",
+					"name": "CLI 智能体",
+					"description": "基于终端与智能体的编程工具",
 					"items": [
 						{ "id": "claude-code", "name": "Claude Code", "features": ["Anthropic's official CLI agent", "strong agentic reasoning"], "extras": {"License": "Proprietary", "Free Tier": "No (API usage)"}, "url": "https://claude.ai/code" },
 						{ "id": "opencode", "name": "OpenCode", "features": ["170k+ GitHub stars", "LSP-enabled", "multi-session", "share links", "desktop app available", "75+ LLM providers"], "extras": {"License": "MIT", "Free Tier": "Yes (open source)"}, "url": "https://opencode.ai" },
@@ -233,13 +233,13 @@
 		},
 		{
 			"id": "extensions-plugins",
-			"name": "Extensions & Plugins",
+			"name": "扩展与插件",
 			"icon": "extensions",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "Extensions & Plugins",
-					"description": "AI coding assistants delivered as extensions for existing editors",
+					"name": "扩展与插件",
+					"description": "以扩展形式提供、适配现有编辑器的 AI 编程助手",
 					"items": [
 						{ "id": "feima-copilot-ext", "name": "Feima Copilot", "features": ["Weighted request-based billing", "multiple model tiers (Qwen, MiniMax, Kimi)", "1M context on select models"], "extras": {"Editors": "VS Code", "Free Tier": "Yes (700 weighted requests 1st mo, 300/mo thereafter)", "vscodeExtensionId": "feima.copilot-more-llms"}, "url": "https://marketplace.visualstudio.com/items?itemName=feima.copilot-more-llms" },
 						{ "id": "cline-ext", "name": "Cline", "features": ["Plan/Act modes", "multi-agent teams", "MCP servers", ".clinerules for project-specific guidance"], "extras": {"Editors": "VS Code, JetBrains", "Free Tier": "Yes (open source)", "vscodeExtensionId": "saoudrizwan.claude-dev"}, "url": "https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev" },
@@ -258,13 +258,13 @@
 		},
 		{
 			"id": "byok-solutions",
-			"name": "BYOK Solutions",
+			"name": "BYOK 服务",
 			"icon": "key",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "BYOK Solutions",
-					"description": "Bring-Your-Own-Key tools that use API keys you supply",
+					"name": "BYOK 服务",
+					"description": "使用你自带 API 密钥的工具",
 					"items": [
 						{ "id": "continue-byok", "name": "Continue", "features": ["Anthropic, OpenAI, Gemini, Ollama, any OpenAI-compatible endpoint"], "extras": {"Type": "Extension"}, "url": "https://marketplace.visualstudio.com/items?itemName=continue.continue" },
 						{ "id": "aider-byok", "name": "Aider", "features": ["Anthropic, OpenAI, Gemini, Groq, Ollama, DeepSeek, + more"], "extras": {"Type": "CLI Agent"}, "url": "https://aider.chat" },
@@ -281,13 +281,13 @@
 		},
 		{
 			"id": "self-hosted",
-			"name": "Self-Hosted Platforms",
+			"name": "自托管平台",
 			"icon": "vm",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "Self-Hosted Platforms",
-					"description": "On-premise and self-hosted options",
+					"name": "自托管平台",
+					"description": "本地部署与自托管选项",
 					"items": [
 						{ "id": "tabby", "name": "Tabby", "features": ["Self-hosted code completion server", "VS Code + JetBrains clients"], "extras": {"License": "Apache 2.0", "Deployment": "Docker / Kubernetes"}, "url": "https://tabbyml.com" },
 						{ "id": "ollama-self", "name": "Ollama", "features": ["Run LLMs locally", "OpenAI-compatible API", "used by many tools"], "extras": {"License": "MIT", "Deployment": "Local binary"}, "url": "https://ollama.com" },
@@ -302,13 +302,13 @@
 		},
 		{
 			"id": "open-source",
-			"name": "Open-Source Projects",
+			"name": "开源项目",
 			"icon": "github",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "Open-Source Projects",
-					"description": "Community-maintained tools with open licenses",
+					"name": "开源项目",
+					"description": "社区维护、开放许可证的工具",
 					"items": [
 						{ "id": "opencode-oss", "name": "OpenCode", "features": ["License: MIT", "Stars: 170k+", "Language: TypeScript"], "url": "https://github.com/anomalyco/opencode" },
 						{ "id": "ollama-oss", "name": "Ollama", "features": ["License: MIT", "Stars: 100k+", "Language: Go"], "url": "https://github.com/ollama/ollama" },
@@ -327,13 +327,13 @@
 		},
 		{
 			"id": "enterprise",
-			"name": "Enterprise Solutions",
+			"name": "企业方案",
 			"icon": "organization",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "Enterprise Solutions",
-					"description": "AI coding platforms designed for teams and organizations",
+					"name": "企业方案",
+					"description": "面向团队与组织的 AI 编程平台",
 					"items": [
 						{ "id": "github-copilot-enterprise", "name": "GitHub Copilot Enterprise", "features": ["Codebase context", "PR summaries", "knowledge bases"], "extras": {"Vendor": "GitHub / Microsoft", "Deployment": "Cloud"}, "url": "https://github.com/features/copilot" },
 						{ "id": "amazon-q-enterprise", "name": "Amazon Q Developer Pro", "features": ["Code reviews", "security scanning", "AWS integration"], "extras": {"Vendor": "AWS", "Deployment": "Cloud"}, "url": "https://aws.amazon.com/q/developer/" },
@@ -349,13 +349,13 @@
 		},
 		{
 			"id": "model-providers",
-			"name": "Model Providers",
+			"name": "模型服务商",
 			"icon": "database",
 			"subgroups": [
 				{
 					"id": "all",
-					"name": "Model Providers",
-					"description": "Underlying LLM providers that power coding assistants",
+					"name": "模型服务商",
+					"description": "驱动编程助手的底层 LLM 服务商",
 					"items": [
 						{ "id": "anthropic", "name": "Anthropic", "features": ["Strong at reasoning and long-context tasks"], "models": ["Claude Sonnet", "Claude Opus"], "extras": {"Free Tier": "No (API)"}, "url": "https://anthropic.com" },
 						{ "id": "openai", "name": "OpenAI", "features": ["Widely supported across all tools"], "models": ["GPT-4o", "o3", "o4-mini"], "extras": {"Free Tier": "No (API)"}, "url": "https://openai.com" },
@@ -373,12 +373,12 @@
 		},
 		{
 			"id": "model-plan-mapping",
-			"name": "Model → Plan Mapping",
+			"name": "模型 → 方案对照",
 			"icon": "layers",
 			"subgroups": [
 				{
 					"id": "claude-models",
-					"name": "Claude Models",
+					"name": "Claude 模型",
 					"items": [
 						{ "id": "claude-opus-4-7", "name": "Claude Opus 4.7", "price": "Claude Pro, Claude Pro Max 5X, Claude Pro Max 20X", "features": ["BYOK: Cursor, Cline, Continue, Aider, Amazon Q Developer Pro"] },
 						{ "id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "price": "Claude Pro, Claude Pro Max 5X, Claude Pro Max 20X", "features": ["BYOK: Cursor, Cline, Continue, Aider, Amazon Q Developer Pro, Kiro Free"] },
@@ -387,7 +387,7 @@
 				},
 				{
 					"id": "gpt-models",
-					"name": "GPT Models",
+					"name": "GPT 模型",
 					"items": [
 						{ "id": "gpt-5-5", "name": "GPT-5.5", "price": "Codex (ChatGPT Go), Codex (ChatGPT Pro)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "gpt-5-3-codex", "name": "GPT-5.3-Codex", "price": "Codex (ChatGPT Plus)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -397,7 +397,7 @@
 				},
 				{
 					"id": "gemini-models",
-					"name": "Gemini Models",
+					"name": "Gemini 模型",
 					"items": [
 						{ "id": "gemini-2-5-pro", "name": "Gemini 2.5 Pro", "price": "Google AI Pro, Google AI Ultra, Antigravity IDE", "features": ["BYOK: Cursor, Cline, Continue, Aider, Google Gemini Code Assist"] },
 						{ "id": "gemini-2-5-flash", "name": "Gemini 2.5 Flash", "price": "Google AI Pro, Google AI Ultra", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -406,7 +406,7 @@
 				},
 				{
 					"id": "deepseek-models",
-					"name": "DeepSeek Models",
+					"name": "DeepSeek 模型",
 					"items": [
 						{ "id": "deepseek-v4", "name": "DeepSeek V4", "price": "BytePlus ModelArk (Lite/Pro), NVIDIA NIM (free tier)", "features": ["BYOK: Cursor, Cline, Continue, Aider, Fireworks AI, Together AI"] },
 						{ "id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro", "price": "ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -417,7 +417,7 @@
 				},
 				{
 					"id": "qwen-models",
-					"name": "Qwen Models",
+					"name": "Qwen 模型",
 					"items": [
 						{ "id": "qwen3-7-plus", "name": "Qwen3.7-plus", "price": "Alibaba Coding Plan Pro", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "qwen3-7-max", "name": "Qwen3.7-Max", "price": "ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -431,7 +431,7 @@
 				},
 				{
 					"id": "glm-models",
-					"name": "GLM Models",
+					"name": "GLM 模型",
 					"items": [
 						{ "id": "glm-5-2", "name": "GLM-5.2", "price": "ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "glm-5-1", "name": "GLM-5.1", "price": "BytePlus ModelArk (Lite/Pro), Z.ai GLM (Lite/Pro/Max)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -440,7 +440,7 @@
 				},
 				{
 					"id": "kimi-models",
-					"name": "Kimi Models",
+					"name": "Kimi 模型",
 					"items": [
 						{ "id": "kimi-k3", "name": "Kimi K3", "price": "ClinePass, OpenCode Go, Ollama Cloud, Command Code", "features": ["1M context", "BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "kimi-k2-7-code", "name": "Kimi K2.7 Code", "price": "ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -451,7 +451,7 @@
 				},
 				{
 					"id": "minimax-models",
-					"name": "MiniMax Models",
+					"name": "MiniMax 模型",
 					"items": [
 						{ "id": "minimax-m3", "name": "MiniMax-M3", "price": "MiniMax Token Plan (Lite/Standard/Pro), ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "minimax-m2-7", "name": "MiniMax-M2.7", "price": "MiniMax Token Plan (Lite/Standard/Pro)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -460,7 +460,7 @@
 				},
 				{
 					"id": "llama-models",
-					"name": "Llama Models",
+					"name": "Llama 模型",
 					"items": [
 						{ "id": "llama-3-x", "name": "Llama 3.x", "price": "Ollama (local), Groq (hosted), Fireworks AI, Together AI", "features": ["BYOK: All BYOK tools"] },
 						{ "id": "llama-4", "name": "Llama 4", "price": "Ollama (local), Fireworks AI, Together AI", "features": ["BYOK: All BYOK tools"] }
@@ -468,7 +468,7 @@
 				},
 				{
 					"id": "other-models",
-					"name": "Other Models",
+					"name": "其他模型",
 					"items": [
 						{ "id": "gpt-oss", "name": "GPT-OSS", "price": "BytePlus ModelArk (Lite/Pro)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "dola-seed-2-0-pro", "name": "Dola-Seed-2.0-pro", "price": "BytePlus ModelArk (Lite/Pro)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -479,7 +479,7 @@
 				},
 				{
 					"id": "grok-models",
-					"name": "Grok Models",
+					"name": "Grok 模型",
 					"items": [
 						{ "id": "grok-4", "name": "Grok 4", "price": "xAI SuperGrok Lite, xAI SuperGrok", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "grok-4-1", "name": "Grok 4.1", "price": "xAI SuperGrok", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -488,7 +488,7 @@
 				},
 				{
 					"id": "mimo-models",
-					"name": "MiMo Models",
+					"name": "MiMo 模型",
 					"items": [
 						{ "id": "mimo-v2-5-pro", "name": "MiMo-V2.5-Pro", "price": "Xiaomi MiMo (Lite/Standard/Pro/Max), ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider, OpenCode Go"] },
 						{ "id": "mimo-v2-5", "name": "MiMo-V2.5", "price": "Xiaomi MiMo (Lite/Standard/Pro/Max), ClinePass", "features": ["BYOK: Cursor, Cline, Continue, Aider, OpenCode Go"] }
@@ -496,14 +496,14 @@
 				},
 				{
 					"id": "stepfun-models",
-					"name": "StepFun Models",
+					"name": "StepFun 模型",
 					"items": [
 						{ "id": "stepfun-all", "name": "StepFun (all models)", "price": "StepFun Flash (Mini/Plus/Pro/Max)", "features": ["BYOK: Cursor, Cline, Continue, Aider"] }
 					]
 				},
 				{
 					"id": "aggregator-models",
-					"name": "Aggregator Models",
+					"name": "聚合器模型",
 					"items": [
 						{ "id": "ds-v4-pro-open", "name": "DeepSeek V4 Pro", "price": "OpenCode Go", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
 						{ "id": "ds-v4-flash-open", "name": "DeepSeek V4 Flash", "price": "OpenCode Go", "features": ["BYOK: Cursor, Cline, Continue, Aider"] },
@@ -521,12 +521,12 @@
 		},
 		{
 			"id": "pricing-comparisons",
-			"name": "Pricing Comparisons",
+			"name": "价格对比",
 			"icon": "symbol-currency",
 			"subgroups": [
 				{
 					"id": "individual-plans",
-					"name": "Individual / Developer Plans",
+					"name": "个人 / 开发者方案",
 					"items": [
 						{ "id": "github-copilot-indiv", "name": "GitHub Copilot", "price": "$10/mo (Individual), $19/mo (Pro+)", "extras": {"Free Tier": "No (removed)"}, "features": ["Free tier discontinued; triggered many departures"] },
 						{ "id": "cursor-indiv", "name": "Cursor", "price": "$20/mo (Pro)", "extras": {"Free Tier": "Yes (2-week trial)"}, "features": ["500 fast requests/mo on Pro"] },
@@ -559,7 +559,7 @@
 				},
 				{
 					"id": "team-enterprise-plans",
-					"name": "Team / Enterprise Plans",
+					"name": "团队 / 企业方案",
 					"items": [
 						{ "id": "github-copilot-business", "name": "GitHub Copilot Business", "price": "$19/seat/mo", "extras": {"Min Seats": "1"} },
 						{ "id": "github-copilot-enterprise-p", "name": "GitHub Copilot Enterprise", "price": "$39/seat/mo", "extras": {"Min Seats": "1"} },

@@ -40,7 +40,7 @@ export function getCatalogData(extensionPath?: string): readonly IDirectoryGroup
 	try {
 		raw = fs.readFileSync(dataPath, 'utf-8');
 	} catch {
-		console.warn(`[copilot-alternatives] Could not read ${dataPath} — catalog tree will be empty.`);
+		console.warn(`[ModelMeter] Could not read ${dataPath} — catalog tree will be empty.`);
 		_cachedGroups = [];
 		return _cachedGroups;
 	}
@@ -49,13 +49,13 @@ export function getCatalogData(extensionPath?: string): readonly IDirectoryGroup
 	try {
 		catalog = JSON.parse(raw) as IDirectoryCatalog;
 	} catch (err) {
-		console.warn(`[copilot-alternatives] Invalid JSON in ${dataPath}:`, err);
+		console.warn(`[ModelMeter] Invalid JSON in ${dataPath}:`, err);
 		_cachedGroups = [];
 		return _cachedGroups;
 	}
 
 	if (!catalog.groups || !Array.isArray(catalog.groups)) {
-		console.warn(`[copilot-alternatives] Missing "groups" array in ${dataPath}`);
+		console.warn(`[ModelMeter] Missing "groups" array in ${dataPath}`);
 		_cachedGroups = [];
 		return _cachedGroups;
 	}

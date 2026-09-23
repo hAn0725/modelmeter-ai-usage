@@ -6,8 +6,10 @@
 import * as vscode from 'vscode';
 import { TokenUsageTracker } from './tokenUsageTracker';
 import { SessionDetail, TurnRow } from './metricsDatabase';
-import { formatTokenCount, formatCost, formatCostCompact, resolveModelPricingKey } from './tokenCostEstimator';
-import { formatCredits } from './copilotCreditEstimator';
+import { formatTokenCount, combineToCny } from './tokenCostEstimator';
+import { formatCnyUi, AMOUNT_FMT_JS } from './amountFormat';
+import { aggregateSessionContext } from './contextBreakdown';
+import { formatVendorName } from './vendorDisplay';
 
 // ─── Formatting helpers ─────────────────────────────────────────────────────
 
@@ -20,18 +22,24 @@ function formatMs(ms: number | null): string {
 	return `${m}m ${s}s`;
 }
 
+function pad2(n: number): string { return n < 10 ? '0' + n : String(n); }
+
+/** Local-time `YYYY-MM-DD HH:mm:ss` (previously UTC via toISOString). */
 function formatDate(ts: number): string {
-	return new Date(ts).toISOString().replace('T', ' ').slice(0, 19);
+	const d = new Date(ts);
+	return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 }
 
+/** Local-time `HH:mm:ss`. */
 function formatTime(ts: number): string {
-	return new Date(ts).toISOString().slice(11, 19);
+	const d = new Date(ts);
+	return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 }
 
 // ─── Dashboard Panel ─────────────────────────────────────────────────────────
 
 export class SessionDashboard {
-	static readonly viewType = 'copilotAlternatives.sessionDetail';
+	static readonly viewType = 'modelMeter.session';
 	static currentPanel: SessionDashboard | undefined;
 
 	private readonly _panel: vscode.WebviewPanel;
@@ -48,7 +56,7 @@ export class SessionDashboard {
 		this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 		this._panel.webview.onDidReceiveMessage(msg => {
 			if (msg.type === 'reload') {
-				vscode.commands.executeCommand('copilotAlternatives.reloadTokenUsage');
+				vscode.commands.executeCommand('modelMeter.reloadTokenUsage');
 			}
 		}, null, this._disposables);
 	}
@@ -62,7 +70,7 @@ export class SessionDashboard {
 		}
 		const panel = vscode.window.createWebviewPanel(
 			SessionDashboard.viewType,
-			'Session Details',
+			'会话详情',
 			col ?? vscode.ViewColumn.One,
 			{ enableScripts: true, retainContextWhenHidden: true },
 		);
@@ -88,46 +96,58 @@ export class SessionDashboard {
 
 	private _renderEmpty(): string {
 		return /* html */`<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>Session Not Found</title>
+<html lang="en"><head><meta charset="UTF-8"><title>未找到会话</title>
 <style>${this._sharedCss()}</style></head>
-<body><h1>Session Not Found</h1>
-<p class="subtitle">Session <strong>${this._sessionId}</strong> could not be found in the database.</p>
+<body><h1>未找到会话</h1>
+<p class="subtitle">在数据库中未找到会话 <strong>${this._sessionId}</strong>。</p>
 </body></html>`;
 	}
 
 	private _renderDetail(detail: SessionDetail): string {
 		const s = detail.session;
 		const turns = detail.turns;
-		const isCopilot = s.session_vendor === 'copilot';
 
 		// ── Overview stats ──────────────────────────────────────────────
 		const dateStr = s.creation_date ? formatDate(s.creation_date) : 'N/A';
-		const vendorModel = [s.session_vendor, s.session_model_name].filter(Boolean).join(' / ') || 'Unknown';
+		const vendorModel = [s.session_vendor ? formatVendorName(s.session_vendor) : null, s.session_model_name].filter(Boolean).join(' / ') || 'Unknown';
 		const totalPrompt = turns.reduce((sum, t) => sum + t.prompt_tokens, 0);
 		const totalCompletion = turns.reduce((sum, t) => sum + t.completion_tokens, 0);
-		const totalThinking = turns.reduce((sum, t) => sum + t.thinking_tokens, 0);
-		const totalCost = turns.reduce((sum, t) => sum + (t.estimated_cost_usd ?? 0), 0);
-		const totalCredits = turns.reduce((sum, t) => sum + (t.copilot_credits ?? 0), 0);
+		const totalCost = turns.reduce((sum, t) => sum + combineToCny(t.estimated_cost_usd, t.estimated_cost_cny), 0);
+		const allTurnsUnpriced = turns.length > 0 && turns.every(t => t.estimated_cost_usd == null && t.estimated_cost_cny == null);
 		const totalElapsed = turns.reduce((sum, t) => sum + (t.total_elapsed_ms ?? 0), 0);
-		const totalToolCalls = turns.reduce((sum, t) => sum + t.tool_call_count, 0);
-		const uniqueAgents = [...new Set(turns.map(t => t.agent_name).filter(Boolean))];
-		const uniqueModes = [...new Set(turns.map(t => t.mode_kind).filter(Boolean))];
-		const pendingLabel = s.has_pending_edits ? '⚠ Has pending edits' : '';
+		const timeRange = turns.length > 0
+			? `${formatTime(turns[0].timestamp)} → ${formatTime(turns[turns.length - 1].timestamp)}`
+			: '';
+		const pendingLabel = s.has_pending_edits ? '⚠ 存在未应用的编辑' : '';
+
+		// ── Session-level input-context aggregate (prompt-token weighted) ──
+		const ctxAgg = aggregateSessionContext(turns);
+		const CTX_META: Array<{ key: string; label: string; cls: string }> = [
+			{ key: 'system', label: '系统指令', cls: 's' },
+			{ key: 'tools', label: '工具定义', cls: 't' },
+			{ key: 'messages', label: '对话消息', cls: 'm' },
+			{ key: 'files', label: '文件上下文', cls: 'f' },
+			{ key: 'toolResults', label: '工具结果', cls: 'r' },
+		];
+		const ctxCats = CTX_META.map(meta => {
+			const c = ctxAgg.categories.find(x => x.key === meta.key);
+			return { ...meta, pct: c?.pct ?? 0, tokens: c?.tokens ?? 0 };
+		}).filter(c => c.pct >= 0.05);
+		const ctxSumPct = ctxCats.reduce((sum, c) => sum + c.pct, 0);
+		const ctxCoverageNote = ctxAgg.hasData && ctxAgg.coverage < 0.9995
+			? `构成数据覆盖 ${(ctxAgg.coverage * 100).toFixed(1)}% 输入 Token`
+			: '';
 
 		// ── Turns table rows (JSON for script) ─────────────────────────
 		const turnRows = turns.map((t, i) => ({
 			idx: i + 1,
 			time: formatTime(t.timestamp),
 			model: t.resolved_model ? t.resolved_model.split('/').pop() : (t.model_name ?? t.model_id.split('/').pop()),
-			vendor: t.vendor,
+			vendor: formatVendorName(t.vendor),
 			modelId: t.model_id,
-			mode: t.mode_kind ?? '—',
-			agent: t.agent_name ?? '—',
 			prompt: t.prompt_tokens,
 			completion: t.completion_tokens,
-			thinking: t.thinking_tokens,
-			cost: t.estimated_cost_usd ?? 0,
-			credits: t.copilot_credits ?? 0,
+			cost: (t.estimated_cost_usd == null && t.estimated_cost_cny == null) ? null : combineToCny(t.estimated_cost_usd, t.estimated_cost_cny),
 			toolRounds: t.tool_call_rounds,
 			toolCalls: t.tool_call_count,
 			files: t.edited_file_count,
@@ -146,7 +166,7 @@ export class SessionDashboard {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Session Details — ${s.session_id.substring(0, 8)}</title>
+<title>会话详情 — ${s.session_id.substring(0, 8)}</title>
 <style>${this._sharedCss()}
 /* Session-specific styles */
 .cell-model{font-size:11px;white-space:nowrap}
@@ -160,75 +180,94 @@ export class SessionDashboard {
 .pbar-m{background:rgba(16,185,129,.7)}
 .pbar-f{background:rgba(249,115,22,.7)}
 .pbar-r{background:rgba(239,68,68,.7)}
+
+/* Session-level input-context panel */
+.ctx-bar{display:flex;height:18px;border-radius:5px;overflow:hidden;background:var(--bg);margin-bottom:10px}
+.ctx-seg{height:100%;min-width:2px}
+.ctx-legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11px}
+.ctx-item{display:inline-flex;align-items:center;gap:6px}
+.ctx-dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+.ctx-pct{color:var(--muted)}
+.ctx-seg.s,.ctx-dot.s{background:rgba(139,92,246,.8)}
+.ctx-seg.t,.ctx-dot.t{background:rgba(59,130,246,.8)}
+.ctx-seg.m,.ctx-dot.m{background:rgba(16,185,129,.8)}
+.ctx-seg.f,.ctx-dot.f{background:rgba(249,115,22,.8)}
+.ctx-seg.r,.ctx-dot.r{background:rgba(239,68,68,.8)}
 </style>
 </head>
 <body>
 
 <div class="hdr">
   <div>
-    <h1>Session Details</h1>
+    <h1>会话详情</h1>
     <p class="subtitle">
       <strong>${s.session_id}</strong> · ${dateStr} · ${vendorModel}
       ${pendingLabel ? `· <span style="color:var(--accent)">${pendingLabel}</span>` : ''}
-      · <a href="#" onclick="_vscode.postMessage({type:'reload'});return false" style="color:var(--accent);text-decoration:none" title="Refresh stats DB from local session files">↻ Refresh Stats DB</a>
+      · <a href="#" onclick="_vscode.postMessage({type:'reload'});return false" style="color:var(--accent);text-decoration:none" title="从本地会话文件重新构建统计数据">↻ 重新构建统计数据</a>
     </p>
   </div>
 </div>
 
 <div class="grid5">
   <div class="card">
-    <div class="lbl">Date</div>
+    <div class="lbl">日期</div>
     <div class="val" style="font-size:16px">${dateStr.split(' ')[0]}</div>
     <div class="det">${s.session_family ?? ''} ${s.session_extension ?? ''}</div>
   </div>
   <div class="card">
-    <div class="lbl">Model</div>
+    <div class="lbl">模型</div>
     <div class="val" style="font-size:14px">${vendorModel}</div>
-    <div class="det">${s.session_is_byok ? 'BYOK' : 'Built-in'}</div>
+    <div class="det">${s.session_is_byok ? 'BYOK' : '内置'}</div>
   </div>
   <div class="card">
-    <div class="lbl">Turns</div>
+    <div class="lbl">轮次</div>
     <div class="val">${turns.length}</div>
-    <div class="det">${uniqueModes.length > 0 ? uniqueModes.join(', ') : ''}</div>
+    <div class="det">${timeRange}</div>
   </div>
   <div class="card">
-    <div class="lbl">Tokens</div>
+    <div class="lbl">Token</div>
     <div class="val">${formatTokenCount(totalPrompt + totalCompletion)}</div>
-    <div class="det">In ${formatTokenCount(totalPrompt)} / Out ${formatTokenCount(totalCompletion)}${totalThinking > 0 ? ` · Think ${formatTokenCount(totalThinking)}` : ''}</div>
+    <div class="det">输入 ${formatTokenCount(totalPrompt)} / 输出 ${formatTokenCount(totalCompletion)}</div>
   </div>
   <div class="card">
-    <div class="lbl">${isCopilot ? 'Credits' : 'Estimate'}</div>
-    <div class="val">${isCopilot ? formatCredits(totalCredits) : formatCost(totalCost)}</div>
-    <div class="det">${formatMs(totalElapsed)} total</div>
+    <div class="lbl">预估费用</div>
+    <div class="val">${allTurnsUnpriced ? '暂无价格' : formatCnyUi(totalCost)}</div>
+    <div class="det">总耗时 ${formatMs(totalElapsed)}</div>
   </div>
+</div>
+
+<!-- Session-level input-context breakdown (prompt-token weighted) -->
+<div class="sec">
+  <div class="sec-h">
+    <div class="sec-t">输入上下文构成（整个会话）</div>
+    <span style="font-size:10px;color:var(--muted)">${ctxAgg.hasData ? ('按输入 Token 加权聚合' + (ctxCoverageNote ? ' · ' + ctxCoverageNote : '')) : ''}</span>
+  </div>
+  ${ctxAgg.hasData ? `
+  <div class="ctx-bar">${ctxCats.map(c => `<span class="ctx-seg ${c.cls}" title="约 ${formatTokenCount(Math.round(c.tokens))} Token · ${c.pct.toFixed(1)}%" style="width:${ctxSumPct > 0 ? (c.pct / ctxSumPct * 100).toFixed(2) : 0}%"></span>`).join('')}</div>
+  <div class="ctx-legend">${ctxCats.map(c => `<span class="ctx-item" title="约 ${formatTokenCount(Math.round(c.tokens))} Token · ${c.pct.toFixed(1)}%"><span class="ctx-dot ${c.cls}"></span>${c.label}<span class="ctx-pct">${c.pct.toFixed(1)}%</span></span>`).join('')}</div>
+  ` : '<div class="empty">暂无输入上下文构成数据。</div>'}
 </div>
 
 <div class="sec">
   <div class="sec-h">
-    <div class="sec-t">Turns (${turns.length})</div>
-    <span style="font-size:10px;color:var(--muted)">
-      ${uniqueAgents.length > 0 ? `Agents: ${uniqueAgents.slice(0, 3).join(', ')}` : ''}
-    </span>
+    <div class="sec-t">轮次（${turns.length}）</div>
   </div>
-  ${turns.length === 0 ? `<div class="empty">No turns with token data in this session.</div>` : `
+  ${turns.length === 0 ? `<div class="empty">此会话中没有包含 Token 数据的轮次。</div>` : `
   <div style="overflow-x:auto">
   <table class="tbl" id="turnTable">
     <thead>
       <tr>
         <th data-sort="idx" class="sorted sort-asc">#</th>
-        <th data-sort="time">Time</th>
-        <th data-sort="model">Model</th>
-        <th data-sort="mode">Mode</th>
-        <th data-sort="agent">Agent</th>
-        <th data-sort="prompt">In</th>
-        <th data-sort="completion">Out</th>
-        <th data-sort="thinking">Think</th>
-        <th>Prompt %</th>
-        <th data-sort="${isCopilot ? 'credits' : 'cost'}">${isCopilot ? 'Credits' : 'Estimate'}</th>
-        <th data-sort="toolCalls">Tools</th>
-        <th data-sort="files">Files</th>
-        <th data-sort="ttfb">TTFB</th>
-        <th data-sort="elapsed">Elapsed</th>
+        <th data-sort="time">时间</th>
+        <th data-sort="model">模型</th>
+        <th data-sort="prompt">输入</th>
+        <th data-sort="completion">输出</th>
+        <th>输入上下文构成</th>
+        <th data-sort="cost">预估费用</th>
+        <th data-sort="toolCalls">工具调用</th>
+        <th data-sort="files">文件</th>
+        <th data-sort="ttfb">首次响应耗时</th>
+        <th data-sort="elapsed">总耗时</th>
       </tr>
     </thead>
     <tbody id="turnBody"></tbody>
@@ -236,9 +275,8 @@ export class SessionDashboard {
   </div>`}
 </div>
 
-<script>
+<script>${AMOUNT_FMT_JS}
 const turns = ${JSON.stringify(turnRows)};
-const IS_COPILOT = ${isCopilot};
 
 function formatToks(n) {
   if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
@@ -255,18 +293,13 @@ function formatElapsed(ms) {
   return m + 'm ' + s + 's';
 }
 
-function formatCreditsJs(n) {
-  if (n >= 1000) return (n/1000).toFixed(2) + 'K cr';
-  return n.toFixed(2) + ' cr';
-}
-
 function _promptBar(t) {
   var segs = [
-    {v:t.sysPct||0, c:'pbar-s', lbl:'System'},
-    {v:t.toolPct||0, c:'pbar-t', lbl:'Tools'},
-    {v:t.msgPct||0, c:'pbar-m', lbl:'Messages'},
-    {v:t.filePct||0, c:'pbar-f', lbl:'Files'},
-    {v:t.toolResPct||0, c:'pbar-r', lbl:'Results'}
+    {v:t.sysPct||0, c:'pbar-s', lbl:'系统'},
+    {v:t.toolPct||0, c:'pbar-t', lbl:'工具'},
+    {v:t.msgPct||0, c:'pbar-m', lbl:'消息'},
+    {v:t.filePct||0, c:'pbar-f', lbl:'文件'},
+    {v:t.toolResPct||0, c:'pbar-r', lbl:'结果'}
   ].filter(function(s){return s.v>0});
   if (segs.length===0) return '—';
   var total = segs.reduce(function(s,x){return s+x.v},0);
@@ -288,14 +321,11 @@ function renderTable(data) {
       '<td>' + t.idx + '</td>' +
       '<td>' + t.time + '</td>' +
       '<td class="cell-model" title="' + (t.modelId || '') + '">' + vendorModel + '</td>' +
-      '<td>' + t.mode + '</td>' +
-      '<td>' + t.agent + '</td>' +
       '<td>' + formatToks(t.prompt) + '</td>' +
       '<td>' + formatToks(t.completion) + '</td>' +
-      '<td>' + (t.thinking > 0 ? formatToks(t.thinking) : '—') + '</td>' +
       '<td>' + _promptBar(t) + '</td>' +
-      '<td>' + (IS_COPILOT ? (t.credits > 0 ? formatCreditsJs(t.credits) : '—') : (t.cost > 0 ? '$' + t.cost.toFixed(4) : '—')) + '</td>' +
-      '<td title="' + (t.toolCalls > 0 ? t.toolCalls + ' tool calls across ' + t.toolRounds + ' rounds' : 'No tool calls') + '">' + (t.toolCalls > 0 ? t.toolCalls + ' / ' + t.toolRounds + 'r' : '—') + '</td>' +
+      '<td>' + (t.cost != null && t.cost > 0 ? fmtCnyUi(t.cost) : '—') + '</td>' +
+      '<td title="' + (t.toolCalls > 0 ? '共 ' + t.toolCalls + ' 次工具调用，' + t.toolRounds + ' 轮' : '无工具调用') + '">' + (t.toolCalls > 0 ? t.toolCalls + ' / ' + t.toolRounds + '轮' : '—') + '</td>' +
       '<td>' + (t.files > 0 ? t.files : '—') + '</td>' +
       '<td>' + formatElapsed(t.ttfb) + '</td>' +
       '<td>' + formatElapsed(t.elapsed) + '</td>' +
@@ -340,8 +370,7 @@ document.getElementById('turnTable').querySelector('thead').addEventListener('cl
     return (av - bv) * sortDir;
   });
 
-  // Re-index
-  for (var i = 0; i < sorted.length; i++) { sorted[i].idx = i + 1; }
+  // Keep original turn numbers ("#" = original order, never re-numbered)
   renderTable(sorted);
 });
 </script>

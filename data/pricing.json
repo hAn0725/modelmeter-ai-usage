@@ -1,7 +1,7 @@
 {
-	"version": "1.4.0",
-	"lastUpdated": "2026-07-25",
-	"description": "Per-model pricing lookup table for cost estimation. All prices in USD per 1M tokens. Sources: providerUrl for direct API pricing; copilotUrl for GitHub Copilot pricing if different.",
+	"version": "2.1.0",
+	"lastUpdated": "2026-09-23",
+	"description": "Per-model pricing lookup table for cost estimation. Prices are in each rule's native currency per 1M tokens (currency field, default USD). 中国大陆官方 API 人民币价格优先（currency=CNY）；大陆价不可得时使用官方全球价。可选 effectiveFrom（北京时间当日 0 点生效）：早于生效时间的请求按 N/A 处理，不得用未来价格倒算。DeepSeek 的峰谷/节假日/alias/历史生效价格由 src/tokenUsage/dynamicPricing.ts 动态处理，不在此表。",
 	"opencodeGo": {
 		"name": "OpenCode Go",
 		"url": "https://opencode.ai/docs/go/#usage-limits",
@@ -271,30 +271,6 @@
 			"note": "Microsoft's coding model, lightweight category on Copilot."
 		},
 		{
-			"id": "deepseek-v4-flash",
-			"name": "DeepSeek V4 Flash",
-			"provider": "DeepSeek",
-			"providerUrl": "https://api-docs.deepseek.com/quick_start/pricing",
-			"copilotUrl": null,
-			"contextWindow": 1000000,
-			"maxOutput": 384000,
-			"pricing": { "input": 0.14, "output": 0.28, "cacheHit": 0.0028 },
-			"note": "Fast & cheap, great for high-volume coding.",
-			"opencodeGo": { "monthlyCap": 60.00, "monthlyEstRequests": 158150 }
-		},
-		{
-			"id": "deepseek-v4-pro",
-			"name": "DeepSeek V4 Pro",
-			"provider": "DeepSeek",
-			"providerUrl": "https://api-docs.deepseek.com/quick_start/pricing",
-			"copilotUrl": null,
-			"contextWindow": 1000000,
-			"maxOutput": 384000,
-			"pricing": { "input": 0.435, "output": 0.87, "cacheHit": 0.003625 },
-			"note": "Strong reasoning, excellent price/performance.",
-			"opencodeGo": { "monthlyCap": 15.00, "monthlyEstRequests": 17150 }
-		},
-		{
 			"id": "grok-4.5",
 			"name": "Grok 4.5",
 			"provider": "xAI",
@@ -306,50 +282,117 @@
 			"opencodeGo": { "monthlyCap": 15.00, "monthlyEstRequests": 380 }
 		},
 		{
-			"id": "glm-5.2",
-			"name": "GLM-5.2",
-			"provider": "Zhipu AI (via z.ai)",
-			"providerUrl": "https://docs.z.ai/guides/overview/pricing",
+			"id": "glm-5.3",
+			"name": "GLM-5.3",
+			"provider": "Zhipu AI (BigModel)",
+			"providerUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing",
 			"copilotUrl": null,
 			"contextWindow": 1000000,
-			"pricing": { "input": 1.40, "output": 4.40, "cacheHit": 0.26 },
-			"note": "Flagship open model, #2 on LMArena Code.",
+			"currency": "CNY",
+			"pricing": { "input": 8, "output": 28, "cacheHit": 2 },
+			"note": "旗舰模型（2026-08-19 上线）。官方人民币原价；缓存存储限时免费。",
+			"opencodeGo": { "monthlyCap": 60.00, "monthlyEstRequests": 4300 }
+		},
+		{
+			"id": "glm-5.3-flash",
+			"name": "GLM-5.3-Flash",
+			"provider": "Zhipu AI (BigModel)",
+			"providerUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+			"copilotUrl": null,
+			"contextWindow": 1000000,
+			"currency": "CNY",
+			"pricing": { "input": 0.8, "output": 2.8, "cacheHit": 0.23 },
+			"note": "原生多模态 Flash 模型（2026-08-26 上线）。官方人民币原价。"
+		},
+		{
+			"id": "mimo-v2.6-flash",
+			"name": "MiMo V2.6 Flash",
+			"provider": "Xiaomi MiMo (Open Platform)",
+			"providerUrl": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+			"copilotUrl": null,
+			"contextWindow": 917504,
+			"currency": "CNY",
+			"effectiveFrom": "2026-09-22",
+			"pricing": { "input": 1.0, "output": 2.0, "cacheHit": 0.02 },
+			"note": "国内实时推理按量官方原价（元/百万 tokens，2026-09-22 生效）：缓存命中 ¥0.02 / 未命中 ¥1.00 / 输出 ¥2.00；不含联网搜索。"
+		},
+		{
+			"id": "mimo-v2.6-pro",
+			"name": "MiMo V2.6 Pro",
+			"provider": "Xiaomi MiMo (Open Platform)",
+			"providerUrl": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+			"copilotUrl": null,
+			"contextWindow": 917504,
+			"currency": "CNY",
+			"effectiveFrom": "2026-09-22",
+			"pricing": { "input": 3.0, "output": 6.0, "cacheHit": 0.025 },
+			"note": "国内实时推理按量官方原价（元/百万 tokens，2026-09-22 生效）：缓存命中 ¥0.025 / 未命中 ¥3.00 / 输出 ¥6.00；不含联网搜索。"
+		},
+		{
+			"id": "mimo-v2.6-pro-ultraspeed",
+			"name": "MiMo V2.6 Pro UltraSpeed",
+			"provider": "Xiaomi MiMo (Open Platform)",
+			"providerUrl": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+			"copilotUrl": null,
+			"contextWindow": 917504,
+			"currency": "CNY",
+			"effectiveFrom": "2026-09-22",
+			"pricing": { "input": 30.0, "output": 60.0, "cacheHit": 0.25 },
+			"note": "国内实时推理按量官方原价（元/百万 tokens，2026-09-22 生效）：缓存命中 ¥0.25 / 未命中 ¥30.00 / 输出 ¥60.00；不含联网搜索。"
+		},
+		{
+			"id": "glm-5.2",
+			"name": "GLM-5.2",
+			"provider": "Zhipu AI (BigModel)",
+			"providerUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+			"copilotUrl": null,
+			"contextWindow": 1000000,
+			"currency": "CNY",
+			"pricing": { "input": 8, "output": 28, "cacheHit": 2 },
+			"note": "旗舰开源模型（2026-06-16 上线）。官方人民币原价；缓存存储限时免费。",
 			"opencodeGo": { "monthlyCap": 60.00, "monthlyEstRequests": 4300 }
 		},
 		{
 			"id": "glm-5.1",
 			"name": "GLM-5.1",
-			"provider": "Zhipu AI (via z.ai)",
-			"providerUrl": "https://docs.z.ai/guides/overview/pricing",
+			"provider": "Zhipu AI (BigModel)",
+			"providerUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing",
 			"copilotUrl": null,
 			"contextWindow": 198000,
-			"pricing": { "input": 1.40, "output": 4.40, "cacheHit": 0.26 },
+			"currency": "CNY",
+			"pricing": { "input": 6, "output": 24, "cacheHit": 1.3 },
+			"note": "输入 ≤32K 档官方人民币价（≥32K 档为 ¥8/¥28）。",
 			"opencodeGo": { "monthlyCap": 60.00, "monthlyEstRequests": 4300 }
 		},
 		{
 			"id": "glm-5",
 			"name": "GLM-5",
-			"provider": "Zhipu AI (via z.ai)",
-			"providerUrl": "https://docs.z.ai/guides/overview/pricing",
+			"provider": "Zhipu AI (BigModel)",
+			"providerUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing",
 			"copilotUrl": null,
-			"pricing": { "input": 1.00, "output": 3.20, "cacheHit": 0.20 }
+			"currency": "CNY",
+			"pricing": { "input": 4, "output": 18, "cacheHit": 1 },
+			"note": "输入 ≤32K 档官方人民币价（≥32K 档为 ¥6/¥22）。"
 		},
 		{
 			"id": "glm-5-turbo",
 			"name": "GLM-5-Turbo",
-			"provider": "Zhipu AI (via z.ai)",
-			"providerUrl": "https://docs.z.ai/guides/overview/pricing",
+			"provider": "Zhipu AI (BigModel)",
+			"providerUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing",
 			"copilotUrl": null,
-			"pricing": { "input": 1.20, "output": 4.00, "cacheHit": 0.24 }
+			"currency": "CNY",
+			"pricing": { "input": 5, "output": 22, "cacheHit": 1.2 },
+			"note": "输入 ≤32K 档官方人民币价（≥32K 档为 ¥7/¥26）。"
 		},
 		{
 			"id": "glm-4.7",
 			"name": "GLM-4.7",
-			"provider": "Zhipu AI (via z.ai)",
-			"providerUrl": "https://docs.z.ai/guides/overview/pricing",
+			"provider": "Zhipu AI (BigModel)",
+			"providerUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing",
 			"copilotUrl": null,
-			"pricing": { "input": 0.60, "output": 2.20, "cacheHit": 0.11 },
-			"note": "Sonnet-level model for daily development."
+			"currency": "CNY",
+			"pricing": { "input": 2, "output": 8, "cacheHit": 0.4 },
+			"note": "输入 <32K 且输出 <0.2K 档官方人民币价（长输出档为 ¥3/¥14）。"
 		},
 		{
 			"id": "kimi-k3",
@@ -397,25 +440,38 @@
 			"note": "Baidu flagship. Available via Baidu Token Plan (unified token pool, no per-model pricing); price here is a pay-as-you-go estimate."
 		},
 		{
-			"id": "qwen3.7-max",
-			"name": "Qwen3.7 Max",
-			"provider": "Alibaba Cloud",
-			"providerUrl": "https://help.aliyun.com/zh/model-studio/getting-started/models",
+			"id": "qwen3.8-flash",
+			"name": "Qwen3.8 Flash",
+			"provider": "Alibaba Cloud (Model Studio 华北2·北京)",
+			"providerUrl": "https://help.aliyun.com/zh/model-studio/qwen3-8-flash",
 			"copilotUrl": null,
 			"contextWindow": 1000000,
-			"pricing": { "input": 2.50, "output": 7.50, "cacheHit": 0.50 },
-			"note": "Highest capability Qwen.",
+			"currency": "CNY",
+			"pricing": { "input": 0.8, "output": 2.7, "cacheHit": 0.1 },
+			"note": "中国区官方人民币原价（输入按缓存未命中 ¥0.8 估算）。"
+		},
+		{
+			"id": "qwen3.7-max",
+			"name": "Qwen3.7 Max",
+			"provider": "Alibaba Cloud (Model Studio 华北2·北京)",
+			"providerUrl": "https://help.aliyun.com/zh/model-studio/qwen3-7-max",
+			"copilotUrl": null,
+			"contextWindow": 1000000,
+			"currency": "CNY",
+			"pricing": { "input": 12, "output": 36, "cacheHit": 2.4 },
+			"note": "中国区官方人民币原价。",
 			"opencodeGo": { "monthlyCap": 60.00, "monthlyEstRequests": 4770 }
 		},
 		{
 			"id": "qwen3.7-plus",
 			"name": "Qwen3.7 Plus",
-			"provider": "Alibaba Cloud",
-			"providerUrl": "https://help.aliyun.com/zh/model-studio/getting-started/models",
+			"provider": "Alibaba Cloud (Model Studio 华北2·北京)",
+			"providerUrl": "https://help.aliyun.com/zh/model-studio/qwen3-7-plus",
 			"copilotUrl": null,
 			"contextWindow": 1000000,
-			"pricing": { "input": 0.40, "output": 1.60, "cacheHit": 0.04, "inputLongContext": 1.20, "outputLongContext": 4.80 },
-			"note": "Best price/performance Qwen. ≤256K / >256K two-tier.",
+			"currency": "CNY",
+			"pricing": { "input": 2, "output": 8, "cacheHit": 0.4 },
+			"note": "中国区官方人民币原价（输入 ≤256K 档）。",
 			"opencodeGo": { "monthlyCap": 60.00, "monthlyEstRequests": 21600 }
 		},
 		{

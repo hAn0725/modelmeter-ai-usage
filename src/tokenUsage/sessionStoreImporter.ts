@@ -128,6 +128,50 @@ function extractExtensionId(raw: unknown): string | undefined {
 
 // ─── Array field counting ───────────────────────────────────────────────────
 
+/**
+ * Counts the files actually edited in this request (unique, case-insensitive
+ * paths), merging the two real VS Code structures:
+ *
+ *   1. `editedFileEvents[].uri` — working-set edit events recorded by VS Code.
+ *   2. `response[].kind === 'textEditGroup'` — applied edit groups; each part
+ *      carries the target file URI. In real sessions this is the richest source
+ *      (tool-based edits such as `replace_string_in_file` / `create_file` show
+ *      up here), while `editedFileEvents` is sparse.
+ *
+ * Prompt attachments / inline references are deliberately NOT counted — only
+ * files with an actual applied edit. Placeholder groups (`done !== true` with
+ * no edits) are ignored.
+ */
+function countEditedFiles(req: Record<string, unknown>): number {
+	const uris = new Set<string>();
+	const norm = (raw: unknown): string | null => {
+		if (!raw || typeof raw !== 'object') { return null; }
+		const o = raw as Record<string, unknown>;
+		const p = (o.fsPath as string) ?? (o.external as string) ?? (o.path as string) ?? null;
+		return typeof p === 'string' && p.length > 0 ? p.replace(/\\/g, '/').toLowerCase() : null;
+	};
+
+	if (Array.isArray(req.editedFileEvents)) {
+		for (const ev of req.editedFileEvents) {
+			const p = norm((ev as Record<string, unknown>)?.uri);
+			if (p) { uris.add(p); }
+		}
+	}
+
+	if (Array.isArray(req.response)) {
+		for (const part of req.response) {
+			const o = part as Record<string, unknown>;
+			if (!o || o.kind !== 'textEditGroup') { continue; }
+			const edits = o.edits as unknown[] | undefined;
+			if (o.done !== true && (!Array.isArray(edits) || edits.length === 0)) { continue; }
+			const p = norm(o.uri);
+			if (p) { uris.add(p); }
+		}
+	}
+
+	return uris.size;
+}
+
 interface ArrayCounts {
 	responsePartCount: number;
 	contentRefCount: number;
@@ -142,7 +186,7 @@ function countArrays(req: Record<string, unknown>): ArrayCounts {
 		responsePartCount: (req.response as unknown[])?.length ?? 0,
 		contentRefCount: (req.contentReferences as unknown[])?.length ?? 0,
 		codeCitationCount: (req.codeCitations as unknown[])?.length ?? 0,
-		editedFileCount: (req.editedFileEvents as unknown[])?.length ?? 0,
+		editedFileCount: countEditedFiles(req),
 		followupCount: (req.followups as unknown[])?.length ?? 0,
 		variableCount: (
 			(req.variableData as Record<string, unknown>)?.variables as unknown[]
@@ -329,7 +373,6 @@ export function parseSessionFile(filePath: string): ParsedSession | null {
 			prompt_tokens: promptTokens,
 			completion_tokens: completionTokens,
 			output_buffer: (req.outputBuffer as number) ?? null,
-			copilot_credits: (req.copilotCredits as number) ?? null,
 			system_instructions_pct: systemInstructionsPct,
 			tool_definitions_pct: toolDefinitionsPct,
 			messages_pct: messagesPct,
@@ -351,6 +394,7 @@ export function parseSessionFile(filePath: string): ParsedSession | null {
 			tool_call_count: tcr.calls,
 			thinking_tokens: tcr.thinkingTokens,
 			estimated_cost_usd: null,
+			estimated_cost_cny: null,
 		});
 	}
 

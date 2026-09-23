@@ -10,6 +10,7 @@ import * as os from 'os';
 import { ILogService } from '../platform/log/common/logService';
 import type { MetricsService } from './metricsService';
 import { isWSL, getWindowsUserDirs } from './wslUtils';
+import { STATE_KEYS } from './legacyConfig';
 
 // ─── Settings ──────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ import { isWSL, getWindowsUserDirs } from './wslUtils';
  * Separate from the background backfill window to keep live scanning cheap.
  * Default: 1 day (24 hours).
  */
-const SETTING_WATCHER_WINDOW_DAYS = 'copilotAlternatives.tokenUsage.watcherWindowDays';
+const SETTING_WATCHER_WINDOW_DAYS = 'modelMeter.tokenUsage.watcherWindowDays';
 const DEFAULT_WATCHER_WINDOW_DAYS = 1;
 
 // ─── Emitted event ──────────────────────────────────────────────────────────
@@ -106,6 +107,59 @@ function getWorkspaceStorageRoots(home: string): string[] {
 		path.join(home, '.vscode-oss-dev', 'User', 'workspaceStorage'),
 	);
 
+	return roots;
+}
+
+// ─── Empty-window session storage path probing ────────────────────────────
+
+/**
+ * Returns candidate `globalStorage/emptyWindowChatSessions` directories.
+ *
+ * VS Code stores chat sessions from windows WITHOUT an open folder here as flat
+ * `*.jsonl` files. They are not under workspaceStorage, so they were previously
+ * missed entirely (e.g. Xiaomi MiMo BYOK sessions in a no-folder window).
+ */
+function getEmptyWindowSessionRoots(home: string): string[] {
+	const roots: string[] = [];
+	const userDirs: string[] = [];
+
+	if (process.platform === 'win32') {
+		userDirs.push(
+			path.join(home, 'AppData', 'Roaming', 'Code', 'User'),
+			path.join(home, 'AppData', 'Roaming', 'Code - Insiders', 'User'),
+		);
+	} else if (process.platform === 'darwin') {
+		userDirs.push(
+			path.join(home, 'Library', 'Application Support', 'Code', 'User'),
+			path.join(home, 'Library', 'Application Support', 'Code - Insiders', 'User'),
+		);
+	} else {
+		userDirs.push(
+			path.join(home, '.config', 'Code', 'User'),
+			path.join(home, '.config', 'Code - Insiders', 'User'),
+			path.join(home, '.config', 'code-oss-dev', 'User'),
+		);
+
+		if (isWSL()) {
+			for (const user of getWindowsUserDirs()) {
+				userDirs.push(
+					path.join('/mnt/c/Users', user, 'AppData', 'Roaming', 'Code', 'User'),
+					path.join('/mnt/c/Users', user, 'AppData', 'Roaming', 'Code - Insiders', 'User'),
+				);
+			}
+		}
+	}
+
+	// VS Code Server / Remote (Linux)
+	userDirs.push(
+		path.join(home, '.vscode-server', 'data', 'User'),
+		path.join(home, '.vscode-server-insiders', 'data', 'User'),
+		path.join(home, '.vscode-oss-dev', 'User'),
+	);
+
+	for (const userDir of userDirs) {
+		roots.push(path.join(userDir, 'globalStorage', 'emptyWindowChatSessions'));
+	}
 	return roots;
 }
 
@@ -270,18 +324,23 @@ export class ChatSessionStoreWatcher implements vscode.Disposable {
 		if (isWSL()) {
 			const wslRoots = getWorkspaceStorageRoots(os.homedir())
 				.filter(r => r.startsWith('/mnt/') && fs.existsSync(r));
-			if (wslRoots.length > 0) {
+			const wslEmptyRoots = getEmptyWindowSessionRoots(os.homedir())
+				.filter(r => r.startsWith('/mnt/') && fs.existsSync(r));
+			if (wslRoots.length > 0 || wslEmptyRoots.length > 0) {
 				const pollTimer = setInterval(() => {
 					for (const root of wslRoots) {
 						void this._pollWSLRoot(root);
 					}
+					for (const root of wslEmptyRoots) {
+						void this._pollWSLEmptyRoot(root);
+					}
 				}, 120_000);
 				context.subscriptions.push({ dispose: () => clearInterval(pollTimer) });
-				this._log.debug(`ChatSessionStore: WSL polling active for ${wslRoots.length} Windows root(s)`);
+				this._log.debug(`ChatSessionStore: WSL polling active for ${wslRoots.length + wslEmptyRoots.length} Windows root(s)`);
 			}
 		}
 
-		this._log.info(
+		this._log.debug(
 			`ChatSessionStore watcher active — ${this._seenRequestIds.size} known requests, ` +
 			`${this._knownChatDirs.size} chatSessions dirs` +
 			(isWSL() ? ' [WSL mode: probing Windows paths]' : '')
@@ -341,18 +400,35 @@ export class ChatSessionStoreWatcher implements vscode.Disposable {
 
 			this._log.debug(`ChatSessionStore: registered watchers for ${root}`);
 		}
+
+		// Empty-window session stores: flat `*.jsonl` files directly inside the
+		// root (no per-workspace subdirectories).
+		const emptyRoots = getEmptyWindowSessionRoots(os.homedir()).filter(r => fs.existsSync(r));
+		for (const root of emptyRoots) {
+			const rootUri = vscode.Uri.file(root);
+			const watcher = vscode.workspace.createFileSystemWatcher(
+				new vscode.RelativePattern(rootUri, '*.jsonl'),
+				false, // watch creates
+				false, // watch changes
+				true   // ignore deletes
+			);
+			watcher.onDidCreate(uri => this._processFile(uri.fsPath));
+			watcher.onDidChange(uri => this._processFile(uri.fsPath));
+			context.subscriptions.push(watcher);
+			this._log.debug(`ChatSessionStore: registered empty-window watcher for ${root}`);
+		}
 	}
 
 	// ── State persistence ──────────────────────────────────────────
 
 	private _loadState(): void {
-		for (const id of this._globalState.get<string[]>('csw.seenRequestIds', [])) {
+		for (const id of this._globalState.get<string[]>(STATE_KEYS.seenRequestIds, [])) {
 			this._seenRequestIds.add(id);
 		}
 	}
 
 	private _saveState(): void {
-		void this._globalState.update('csw.seenRequestIds', [...this._seenRequestIds]);
+		void this._globalState.update(STATE_KEYS.seenRequestIds, [...this._seenRequestIds]);
 	}
 
 	// ── Scanning ───────────────────────────────────────────────────
@@ -373,6 +449,19 @@ export class ChatSessionStoreWatcher implements vscode.Disposable {
 					this._scanChatDir(chatDir);
 
 				}
+			} catch {
+				// skip inaccessible roots
+			}
+		}
+
+		// Empty-window session stores (flat `*.jsonl`, no workspace subdirs)
+		for (const root of getEmptyWindowSessionRoots(os.homedir())) {
+			try {
+				if (!fs.existsSync(root)) { continue; }
+				if (this._knownChatDirs.has(root)) { continue; }
+				this._knownChatDirs.add(root);
+				this._log.debug(`ChatSessionStore: discovered empty-window sessions dir at ${root}`);
+				this._scanChatDir(root);
 			} catch {
 				// skip inaccessible roots
 			}
@@ -448,6 +537,29 @@ export class ChatSessionStoreWatcher implements vscode.Disposable {
 				}
 			} catch { /* dir inaccessible */ }
 		}
+	}
+
+	/**
+	 * WSL polling for empty-window stores: flat `*.jsonl` files directly inside
+	 * the root (no per-workspace subdirectories to discover).
+	 */
+	private async _pollWSLEmptyRoot(root: string): Promise<void> {
+		const config = vscode.workspace.getConfiguration();
+		const watcherDays = config.get<number>(SETTING_WATCHER_WINDOW_DAYS, DEFAULT_WATCHER_WINDOW_DAYS);
+		const cutoffMs = Date.now() - (watcherDays * 86400000);
+
+		try {
+			const files = await fs.promises.readdir(root);
+			for (const file of files) {
+				if (!file.endsWith('.jsonl')) { continue; }
+				const fp = path.join(root, file);
+				try {
+					const stat = await fs.promises.stat(fp);
+					if (stat.mtimeMs < cutoffMs) { continue; }
+					this._processFile(fp);
+				} catch { /* file disappeared */ }
+			}
+		} catch { /* dir inaccessible */ }
 	}
 
 	// ── File processing ────────────────────────────────────────────
@@ -610,17 +722,17 @@ export class ChatSessionStoreWatcher implements vscode.Disposable {
 	 * Clears all seen request IDs and re-scans all known chatSessions directories.
 	 */
 	reloadAll(): void {
-		this._log.info(
+		this._log.debug(
 			`ChatSessionStore: reloading — clearing ${this._seenRequestIds.size} seen requests`
 		);
 		this._seenRequestIds.clear();
-		void this._globalState.update('csw.seenRequestIds', undefined);
+		void this._globalState.update(STATE_KEYS.seenRequestIds, undefined);
 		// Re-scan known directories
 		for (const dir of this._knownChatDirs) {
 			this._scanChatDir(dir);
 		}
 		this._saveState();
-		this._log.info('ChatSessionStore: reload complete');
+		this._log.debug('ChatSessionStore: reload complete');
 	}
 
 	// ── Dispose ────────────────────────────────────────────────────

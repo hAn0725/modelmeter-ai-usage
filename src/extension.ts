@@ -6,88 +6,81 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { registerByokCommands } from './byok/byokCommands';
 import { TreeProvider } from './tree/treeProvider';
+import { ModelMeterSidebarProvider } from './tokenUsage/modelMeterSidebar';
 import { TreeNode } from './tree/treeTypes';
 import { registerNodeActions, setExtensionPath, setTreeRefresher } from './tree/nodeActions';
-import { findChatLanguageModelsFile } from './byok/chatLanguageModels';
 import { TokenUsageTracker } from './tokenUsage/tokenUsageTracker';
 import { TokenUsageStatusBar } from './tokenUsage/tokenUsageStatusBar';
 import { TokenUsageDashboard } from './tokenUsage/tokenUsageDashboard';
 import { VendorDashboard } from './tokenUsage/vendorDashboard';
 import { ModelDashboard } from './tokenUsage/modelDashboard';
 import { SessionDashboard } from './tokenUsage/sessionDashboard';
+import { setUsdToCnyRate, combineToCny } from './tokenUsage/tokenCostEstimator';
 import { LogServiceImpl, LogLevel } from './platform/log/common/logService';
 import { VSCodeLogTarget, ConsoleLogTarget } from './platform/log/vscode/logService';
 import { logVendorMapping } from './tokenUsage/vendorResolver';
+import { LEGACY_CONFIG_MAP, LEGACY_CONFIG_MIGRATION_VERSION, STATE_KEYS, planConfigMigration, planSeenRequestIdsMigration, ConfigInspectLike } from './tokenUsage/legacyConfig';
 
 export function activate(context: vscode.ExtensionContext) {
 	const activationStart = Date.now();
 
 	// ─── Logging ───────────────────────────────────────────────────────
-	const logChannel = vscode.window.createOutputChannel('Copilot Alternatives', { log: true });
+	const logChannel = vscode.window.createOutputChannel('ModelMeter', { log: true });
 	context.subscriptions.push(logChannel);
+	// Log level: "normal" keeps only summaries + warnings/errors in the output
+	// channel; "debug" additionally surfaces per-root/per-file/import details.
+	// Compat reads: the new `modelMeter.*` keys win; legacy `copilotAlternatives.*`
+	// values are honored until the one-shot namespace migration (below) has run.
+	const initialLogLevel = readConfigCompat<string>('modelMeter.logLevel', 'copilotAlternatives.logLevel', 'normal');
+	const vscodeLogTarget = new VSCodeLogTarget(logChannel, initialLogLevel === 'debug' ? LogLevel.Debug : LogLevel.Info);
 	const logService = new LogServiceImpl([
-		new VSCodeLogTarget(logChannel),
-		new ConsoleLogTarget('[CA] ', LogLevel.Debug),
+		vscodeLogTarget,
+		new ConsoleLogTarget('[CA] ', LogLevel.Warning),
 	]);
 
-	logService.info('Copilot Alternatives extension activating...');
-	// Show the output channel on activation so the user sees logs immediately
-	logChannel.show();
+	logService.info('ModelMeter extension activating...');
+	// NOTE: the output channel is intentionally NOT auto-shown on activation.
+	// Run “Token 用量诊断” (or pick ModelMeter in the Output view) to inspect logs.
 
-	// Load cached budget from config
-	TokenUsageDashboard.loadBudgetFromConfig();
+	// One-shot legacy namespace migration (config keys + seenRequestIds state).
+	// Runs asynchronously; reads above and below use compat fallbacks so the
+	// first session behaves correctly even before the writes land.
+	void migrateLegacyNamespace(context, logService);
+
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration('modelMeter.logLevel')) { return; }
+			const level = readConfigCompat<string>('modelMeter.logLevel', 'copilotAlternatives.logLevel', 'normal');
+			vscodeLogTarget.setMinLevel(level === 'debug' ? LogLevel.Debug : LogLevel.Info);
+			logService.info(`Log level changed to: ${level === 'debug' ? 'debug' : 'normal'}`);
+		})
+	);
+
+	// Load the USD→CNY display rate from settings (no network lookup)
+	setUsdToCnyRate(readConfigCompat<number>('modelMeter.tokenUsage.usdToCnyRate', 'copilotAlternatives.tokenUsage.usdToCnyRate', 7.2));
 
 	// ─── Token Usage Tracking ───────────────────────────────────────────
 	const tokenTracker = new TokenUsageTracker(context.globalState, context.globalStorageUri.fsPath, logService.createSubLogger('TokenUsage'));
 	tokenTracker.activate(context);
 	context.subscriptions.push(tokenTracker);
 
-	// ─── Tree View ──────────────────────────────────────────────────────
+	// ─── Sidebar（ModelMeter WebviewView） ───────────────────────────────
+	// The previous tree sidebar is replaced by a webview view. TreeProvider is
+	// kept only as the session-filter state holder used by the filter commands.
 	const treeProvider = new TreeProvider(context.extensionPath, tokenTracker);
-	const treeView = vscode.window.createTreeView('copilotAlternatives.main', {
-		treeDataProvider: treeProvider,
-		showCollapseAll: true,
-	});
-	context.subscriptions.push(treeView);
-
-	// Refresh BYOK section when providers change (after add/remove)
-	treeView.onDidChangeVisibility(() => {
-		if (treeView.visible) {
-			treeProvider.refresh();
-		}
-	});
-
-	// Watch chatLanguageModels.json for external changes
-	const jsonFileUri = findChatLanguageModelsFile();
-	if (jsonFileUri) {
-		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(jsonFileUri.fsPath, '*'),
-			false, // ignoreCreate
-			false, // ignoreChange — we want changes
-			false  // ignoreDelete
-		);
-		watcher.onDidChange(() => treeProvider.refresh());
-		watcher.onDidCreate(() => treeProvider.refresh());
-		watcher.onDidDelete(() => treeProvider.refresh());
-		context.subscriptions.push(watcher);
-	}
+	const sidebarProvider = new ModelMeterSidebarProvider(
+		tokenTracker,
+		(context.extension.packageJSON as { version?: string }).version ?? '',
+		() => treeProvider.sessionFilter,
+	);
+	context.subscriptions.push(sidebarProvider);
+	context.subscriptions.push(vscode.window.registerWebviewViewProvider('modelMeter.main', sidebarProvider, {
+		webviewOptions: { retainContextWhenHidden: false },
+	}));
 
 	const tokenStatusBar = new TokenUsageStatusBar(tokenTracker);
 	tokenTracker.onDidUpdate(() => tokenStatusBar.update());
-	tokenTracker.onDidChangeEntitlement(() => {
-		tokenStatusBar.update();
-		if (VendorDashboard.currentPanel) {
-			VendorDashboard.currentPanel.update();
-		}
-		if (ModelDashboard.currentPanel) {
-			ModelDashboard.currentPanel.update();
-		}
-		if (TokenUsageDashboard.currentPanel) {
-			TokenUsageDashboard.currentPanel.update();
-		}
-	});
 	// Refresh dashboard when stored data changes (if dashboard is open)
 	tokenTracker.onDidChangeStored(() => {
 		tokenStatusBar.update();
@@ -103,28 +96,28 @@ export function activate(context: vscode.ExtensionContext) {
 		if (SessionDashboard.currentPanel) {
 			SessionDashboard.currentPanel.update();
 		}
-		treeProvider.refresh();
+		sidebarProvider.notifyDataChanged();
 	});
 	context.subscriptions.push(tokenStatusBar);
 
 	// ─── Token Usage Commands ───────────────────────────────────────────
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.showTokenUsage', () => {
+		vscode.commands.registerCommand('modelMeter.showTokenUsage', () => {
 			const dashboard = TokenUsageDashboard.createOrShow(tokenTracker);
 			dashboard.update();
 		})
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.reloadTokenUsage', async () => {
+		vscode.commands.registerCommand('modelMeter.reloadTokenUsage', async () => {
 			const answer = await vscode.window.showWarningMessage(
-				'Refresh stats database from local session files? This will re-read all Copilot session event logs and update the database.',
+				'要从本地会话文件重新构建统计数据吗？将重新读取所有 Copilot 会话事件日志并更新数据库。',
 				{ modal: true },
-				'Refresh'
+				'重新构建'
 			);
-			if (answer !== 'Refresh') { return; }
+			if (answer !== '重新构建') { return; }
 			await tokenTracker.reloadAll();
-			vscode.window.showInformationMessage('Stats DB refreshed from local session files.');
+			vscode.window.showInformationMessage('统计数据已从本地会话文件重新构建。');
 			if (TokenUsageDashboard.currentPanel) {
 				TokenUsageDashboard.currentPanel.update();
 			}
@@ -141,22 +134,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.signInGitHubForCopilotEntitlement', async () => {
-			const entitlement = await tokenTracker.signInForCopilotEntitlement();
-			if (entitlement) {
-				vscode.window.showInformationMessage(`GitHub Copilot plan detected: ${entitlement.planName} (~${entitlement.monthlyCreditsIncluded} credits/mo).`);
-			} else {
-				vscode.window.showWarningMessage(
-					'Could not determine your GitHub Copilot plan. ' +
-					'If you cancelled the sign-in dialog, try again. ' +
-					'If the problem persists, make sure you have a GitHub Copilot subscription and VS Code is connected to github.com.'
-				);
-			}
-		})
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.exportTokenUsage', async () => {
+		vscode.commands.registerCommand('modelMeter.exportTokenUsage', async () => {
 			const s = await tokenTracker.metricsService.getDashboardSummary();
 			const json = JSON.stringify(s, null, 2);
 			vscode.workspace.openTextDocument({ content: json, language: 'json' })
@@ -165,52 +143,43 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.debugTokenUsage', async () => {
+		vscode.commands.registerCommand('modelMeter.debugTokenUsage', async () => {
 			const s = await tokenTracker.metricsService.getDashboardSummary();
 			const log = logService.createSubLogger('Debug');
 
-			log.info('=== Token Usage Debug Info ===');
-			log.info(`Extension version: ${context.extension?.packageJSON?.version ?? 'unknown'}`);
-			log.info(`Session tokens: ${tokenTracker.sessionTokens}`);
-			log.info(`Session cost: $${tokenTracker.sessionCost.toFixed(4)}`);
-			log.info(`Backfill days: ${vscode.workspace.getConfiguration().get<number>('copilotAlternatives.tokenUsage.backfillDays', 60)}`);
-
-			// Daily data overview (last 7 days)
-			log.info('--- Last 7 Days (from SQLite) ---');
-			for (const day of s.thisWeek) {
-				if (day.totalPromptTokens === 0 && day.totalCompletionTokens === 0) { continue; }
-				log.info(`  ${day.date}: in=${day.totalPromptTokens} out=${day.totalCompletionTokens} cost=$${day.estimatedCostUsd.toFixed(4)} ${day.requestCount} requests`);
-			}
-
-			// Vendor breakdown
-			log.info('--- Vendor Breakdown (30 days) ---');
 			for (const v of s.vendorBreakdown) {
-				log.info(`  ${v.vendor}: in=${v.promptTokens} out=${v.completionTokens} cost=$${v.costUsd.toFixed(4)} ${v.requestCount} requests`);
+				log.info(`  ${v.vendor}: in=${v.promptTokens} out=${v.completionTokens} cost=¥${combineToCny(v.costUsd, v.costCny).toFixed(4)} ${v.requestCount} requests`);
 			}
 
 			// Model breakdown
 			log.info('--- Model Breakdown (30 days) ---');
 			for (const m of s.modelBreakdown) {
-				log.info(`  ${m.modelId}: in=${m.promptTokens} out=${m.completionTokens} cost=$${m.costUsd.toFixed(4)} ${m.requestCount} requests`);
+				log.info(`  ${m.modelId}: in=${m.promptTokens} out=${m.completionTokens} cost=¥${combineToCny(m.costUsd, m.costCny).toFixed(4)} ${m.requestCount} requests`);
 			}
 
 			// All-time totals
 			log.info('--- All Time ---');
 			log.info(`  Days tracked: ${s.allTime.daysTracked}`);
 			log.info(`  Total tokens: ${s.allTime.totalPromptTokens + s.allTime.totalCompletionTokens} (in: ${s.allTime.totalPromptTokens}, out: ${s.allTime.totalCompletionTokens})`);
-			log.info(`  Total cost: $${s.allTime.totalCostUsd.toFixed(4)}`);
+			log.info(`  Total cost: ¥${combineToCny(s.allTime.totalCostUsd, s.allTime.totalCostCny).toFixed(4)}`);
 			log.info(`  Sessions: ${s.allTime.sessionCount}, Requests: ${s.allTime.requestCount}`);
 
 			logVendorMapping(s.modelBreakdown.map(m => m.modelId), log);
 
+			log.info('--- Storage & Import Diagnostics ---');
+			for (const line of await tokenTracker.metricsService.getDiagnostics()) {
+				log.info(line);
+			}
+
 			log.info('=== End Debug Info ===');
-			vscode.window.showInformationMessage('Token usage debug info written to output channel.');
+			logService.show();
+			vscode.window.showInformationMessage('Token 用量诊断信息已写入输出面板。');
 		})
 	);
 
 	// ─── Vendor & Model Usage Commands ──────────────────────────────────
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.showVendorUsage', async (arg?: string | TreeNode) => {
+		vscode.commands.registerCommand('modelMeter.showVendorUsage', async (arg?: string | TreeNode) => {
 			let vendor: string | undefined;
 			if (typeof arg === 'string') {
 				vendor = arg;
@@ -223,7 +192,7 @@ export function activate(context: vscode.ExtensionContext) {
 				vendor = vendors[0];
 			}
 			if (!vendor) {
-				vscode.window.showInformationMessage('No vendor usage data available yet.');
+				vscode.window.showInformationMessage('暂无厂商用量数据。');
 				return;
 			}
 			const dashboard = VendorDashboard.createOrShow(tokenTracker, vendor);
@@ -232,14 +201,14 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.showModelUsage', (arg?: string) => {
+		vscode.commands.registerCommand('modelMeter.showModelUsage', (arg?: string) => {
 			const dashboard = ModelDashboard.createOrShow(tokenTracker);
 			dashboard.update();
 		})
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.showModelUsageForVendor', (arg: string | TreeNode) => {
+		vscode.commands.registerCommand('modelMeter.showModelUsageForVendor', (arg: string | TreeNode) => {
 			let vendor: string | undefined;
 			if (typeof arg === 'string') {
 				vendor = arg;
@@ -253,14 +222,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// ─── Tree inline chart button commands ──────────────────────────────
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.openUsageOverview', (node?: TreeNode) => {
+		vscode.commands.registerCommand('modelMeter.openUsageOverview', (node?: TreeNode) => {
 			const dashboard = TokenUsageDashboard.createOrShow(tokenTracker);
 			dashboard.update();
 		})
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.openUsageVendor', (node?: TreeNode) => {
+		vscode.commands.registerCommand('modelMeter.openUsageVendor', (node?: TreeNode) => {
 			if (!node || !node.id) { return; }
 			const vendor = node.id.replace(/^usage-vendor:/, '');
 			const dashboard = VendorDashboard.createOrShow(tokenTracker, vendor);
@@ -269,7 +238,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.openUsageModel', (node?: TreeNode) => {
+		vscode.commands.registerCommand('modelMeter.openUsageModel', (node?: TreeNode) => {
 			if (!node || !node.id) { return; }
 			const modelId = node.id.replace(/^usage-model:/, '');
 			const vendor = modelId.includes('/') ? modelId.split('/')[0] : undefined;
@@ -280,7 +249,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// ─── Session Stats Commands ─────────────────────────────────────────
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.showSessionDetail', (sessionId: string) => {
+		vscode.commands.registerCommand('modelMeter.showSessionDetail', (sessionId: string) => {
 			const dashboard = SessionDashboard.createOrShow(tokenTracker, sessionId);
 			dashboard.update();
 		})
@@ -288,7 +257,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Open session filter wizard.
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.toggleSessionFilter', async () => {
+		vscode.commands.registerCommand('modelMeter.toggleSessionFilter', async () => {
 			const current = treeProvider.sessionFilter;
 			const opts = await tokenTracker.metricsService.getSessionFilterOptions();
 			const filter: { days: number; modelName?: string } = { days: current.days };
@@ -296,12 +265,12 @@ export function activate(context: vscode.ExtensionContext) {
 			// Step 1: Date range
 			const datePick = await vscode.window.showQuickPick(
 				[
-					{ label: 'Last 7 days', days: 7 },
-					{ label: 'Last 30 days', days: 30 },
-					{ label: 'Last 90 days', days: 90 },
-					{ label: 'All time', days: 3650 },
+					{ label: '最近 7 天', days: 7 },
+					{ label: '最近 30 天', days: 30 },
+					{ label: '最近 90 天', days: 90 },
+					{ label: '全部时间', days: 3650 },
 				],
-				{ placeHolder: 'Filter by date range...', title: 'Session Filter — Date Range' },
+				{ placeHolder: '选择筛选的日期范围…', title: '会话筛选 — 日期范围' },
 			);
 			if (!datePick) { return; }
 			filter.days = datePick.days;
@@ -309,73 +278,44 @@ export function activate(context: vscode.ExtensionContext) {
 			// Step 2: Model
 			if (opts.modelNames.length > 0) {
 				const pick = await vscode.window.showQuickPick(
-					[{ label: 'All models', val: '' }, ...opts.modelNames.map(m => ({ label: m, val: m }))],
-					{ placeHolder: 'Filter by model (Esc = skip)...', title: 'Session Filter — Model' },
+					[{ label: '全部模型', val: '' }, ...opts.modelNames.map(m => ({ label: m, val: m }))],
+					{ placeHolder: '按模型筛选（Esc 跳过）…', title: '会话筛选 — 模型' },
 				);
 				if (!pick) { return; }
 				filter.modelName = pick.val || undefined;
 			}
 
 			treeProvider.sessionFilter = filter;
+			sidebarProvider.notifyDataChanged();
 		})
 	);
 
 	// Clear session filter — show all sessions (3650 days, no model filter).
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.clearSessionFilter', () => {
+		vscode.commands.registerCommand('modelMeter.clearSessionFilter', () => {
 			treeProvider.sessionFilter = { days: 3650 };
 			treeProvider.refresh();
+			sidebarProvider.notifyDataChanged();
 		})
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.copySessionId', (sessionId: string) => {
+		vscode.commands.registerCommand('modelMeter.copySessionId', (sessionId: string) => {
 			vscode.env.clipboard.writeText(sessionId);
-			vscode.window.showInformationMessage(`Copied session ID: ${sessionId}`);
+			vscode.window.showInformationMessage(`已复制会话 ID：${sessionId}`);
 		})
 	);
 
-	// Set yearly budget target
-	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.setYearlyBudget', async () => {
-			const currentVal = vscode.workspace.getConfiguration().get<number>('copilotAlternatives.tokenUsage.yearlyBudgetTarget', 250000);
-			const result = await vscode.window.showInputBox({
-				title: 'Yearly AI Token Budget',
-				prompt: 'Enter your yearly budget target in USD',
-				value: String(currentVal),
-				validateInput: (v) => {
-					const n = parseFloat(v);
-					if (isNaN(n) || n <= 0) { return 'Please enter a positive number'; }
-					return undefined;
-				},
-			});
-			if (result !== undefined) {
-				const value = parseFloat(result);
-				// Update in-memory cache immediately for all dashboard instances
-				TokenUsageDashboard._yearlyBudget = value;
-				// Persist for next session
-				try {
-					await vscode.workspace.getConfiguration().update('copilotAlternatives.tokenUsage.yearlyBudgetTarget', value, true);
-				} catch (e) {
-					console.warn('[TokenUsage] Failed to persist yearly budget:', e);
-				}
-				vscode.window.showInformationMessage(`Yearly budget set to $${value.toLocaleString()}`);
-				// Refresh open dashboards
-				if (TokenUsageDashboard.currentPanel) { TokenUsageDashboard.currentPanel.update(); }
-				if (VendorDashboard.currentPanel) { VendorDashboard.currentPanel.update(); }
-				if (ModelDashboard.currentPanel) { ModelDashboard.currentPanel.update(); }
-			}
-		})
-	);
-
-	// Listen for budget setting changes to refresh open dashboards
+	// Listen for currency-rate changes to refresh the status bar and open dashboards
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration('copilotAlternatives.tokenUsage.yearlyBudgetTarget')) { return; }
-			TokenUsageDashboard.loadBudgetFromConfig();
+			if (!e.affectsConfiguration('modelMeter.tokenUsage.usdToCnyRate')) { return; }
+			setUsdToCnyRate(readConfigCompat<number>('modelMeter.tokenUsage.usdToCnyRate', 'copilotAlternatives.tokenUsage.usdToCnyRate', 7.2));
+			tokenStatusBar.update();
 			if (TokenUsageDashboard.currentPanel) { TokenUsageDashboard.currentPanel.update(); }
 			if (VendorDashboard.currentPanel) { VendorDashboard.currentPanel.update(); }
 			if (ModelDashboard.currentPanel) { ModelDashboard.currentPanel.update(); }
+			if (SessionDashboard.currentPanel) { SessionDashboard.currentPanel.update(); }
 		})
 	);
 
@@ -383,34 +323,96 @@ export function activate(context: vscode.ExtensionContext) {
 	setExtensionPath(context.extensionPath);
 	setTreeRefresher(() => treeProvider.refresh());
 	registerNodeActions(context);
-	registerByokCommands(context);
 
 	// Command to open/focus the sidebar view
 	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.openSidebar', () => {
-			vscode.commands.executeCommand('workbench.view.extension.copilotAlternatives');
-		})
-	);
-
-	// Legacy webview directory (kept as fallback)
-	context.subscriptions.push(
-		vscode.commands.registerCommand('copilotAlternatives.open', () => {
-			openDirectory(context);
+		vscode.commands.registerCommand('modelMeter.openSidebar', () => {
+			vscode.commands.executeCommand('workbench.view.extension.modelMeter');
 		})
 	);
 
 	// activate() itself is fully synchronous — token usage imports (quickImport/
 	// backgroundImport) run afterward via setImmediate/promise chains and log
 	// their own elapsed time separately.
-	logService.info(`Copilot Alternatives extension activated in ${Date.now() - activationStart}ms (synchronous setup only; background imports continue asynchronously)`);
+	logService.info(`ModelMeter extension activated in ${Date.now() - activationStart}ms (synchronous setup only; background sync deferred ~700ms)`);
+}
+
+// ─── Legacy namespace migration & compat reads ──────────────────────────
+
+/**
+ * Reads a config value while honoring the legacy key as a fallback: the new
+ * key wins whenever the user (or the migration) has set it explicitly.
+ */
+function readConfigCompat<T>(newKey: string, legacyKey: string, fallback: T): T {
+	const cfg = vscode.workspace.getConfiguration();
+	if (hasExplicitValue(cfg.inspect(newKey))) { return cfg.get<T>(newKey, fallback); }
+	if (hasExplicitValue(cfg.inspect(legacyKey))) { return cfg.get<T>(legacyKey, fallback); }
+	return fallback;
+}
+
+function hasExplicitValue(insp: { globalValue?: unknown; workspaceValue?: unknown; workspaceFolderValue?: unknown } | undefined): boolean {
+	if (!insp) { return false; }
+	return insp.globalValue !== undefined || insp.workspaceValue !== undefined || insp.workspaceFolderValue !== undefined;
+}
+
+function toInspectLike(insp: { globalValue?: unknown; workspaceValue?: unknown; workspaceFolderValue?: unknown } | undefined): ConfigInspectLike {
+	return insp ?? {};
+}
+
+/**
+ * One-shot migration: copies explicitly-set legacy `copilotAlternatives.*`
+ * settings to `modelMeter.*` (never overwriting an explicit new value) and
+ * renames the notification-dedup globalState key `csw.seenRequestIds`.
+ * Recorded in globalState (`modelMeter.migrations.legacyConfigVersion`).
+ */
+async function migrateLegacyNamespace(context: vscode.ExtensionContext, logService: LogServiceImpl): Promise<void> {
+	try {
+		const doneVersion = context.globalState.get<number>(STATE_KEYS.configMigrationVersion, 0);
+		const cfg = vscode.workspace.getConfiguration();
+
+		if (doneVersion < LEGACY_CONFIG_MIGRATION_VERSION) {
+			for (const { legacy, current } of LEGACY_CONFIG_MAP) {
+				const plan = planConfigMigration(toInspectLike(cfg.inspect(current)), toInspectLike(cfg.inspect(legacy)));
+				if (!plan.migrate) { continue; }
+				const value = cfg.get(legacy);
+				if (value === undefined) { continue; }
+				try {
+					await cfg.update(current, value, plan.target === 'global'
+						? vscode.ConfigurationTarget.Global
+						: vscode.ConfigurationTarget.Workspace);
+					logService.info(`[Migration] moved setting ${legacy} → ${current}`);
+				} catch (err) {
+					logService.warn(`[Migration] failed to move ${legacy} → ${current}: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			}
+		} else {
+			// Version already recorded — still ensure the state key rename is done.
+		}
+
+		// Rename the notification-dedup state key (new key wins; legacy is purged).
+		const seenNew = context.globalState.get<string[]>(STATE_KEYS.seenRequestIds);
+		const seenLegacy = context.globalState.get<string[]>(STATE_KEYS.seenRequestIdsLegacy);
+		const planned = planSeenRequestIdsMigration(seenNew, seenLegacy);
+		if (seenNew === undefined && planned !== undefined) {
+			await context.globalState.update(STATE_KEYS.seenRequestIds, planned);
+			logService.info(`[Migration] moved state ${STATE_KEYS.seenRequestIdsLegacy} → ${STATE_KEYS.seenRequestIds} (${planned.length} entries)`);
+		}
+		if (seenLegacy !== undefined) {
+			await context.globalState.update(STATE_KEYS.seenRequestIdsLegacy, undefined);
+		}
+
+		await context.globalState.update(STATE_KEYS.configMigrationVersion, LEGACY_CONFIG_MIGRATION_VERSION);
+	} catch (err) {
+		logService.warn(`[Migration] legacy namespace migration failed: ${err instanceof Error ? err.message : String(err)}`);
+	}
 }
 
 // ─── Legacy webview (kept as fallback) ──────────────────────────────────────
 
 function openDirectory(context: vscode.ExtensionContext) {
 	const panel = vscode.window.createWebviewPanel(
-		'copilotAlternatives',
-		'Copilot Alternatives',
+		'modelMeter.directory',
+		'目录',
 		vscode.ViewColumn.One,
 		{ enableScripts: false, retainContextWhenHidden: true }
 	);
@@ -420,7 +422,7 @@ function openDirectory(context: vscode.ExtensionContext) {
 	try {
 		readme = fs.readFileSync(readmePath, 'utf-8');
 	} catch {
-		readme = 'README.md not found. Visit https://github.com/feimacode/copilot-alternatives';
+		readme = '未找到 README.md。';
 	}
 
 	const rows = parseTableSections(readme);
@@ -493,7 +495,7 @@ function getHtml(sections: TableSection[], rawReadme: string): string {
 	const introMatch = rawReadme.match(/^# .+([\s\S]+?)(?=^## )/m);
 	const intro = introMatch ? renderInlineMd(introMatch[1].trim().split('\n').filter(l => !l.startsWith('The focus') && !l.startsWith('- AI-powered')).join('\n')) : '';
 
-	const choosingMatch = rawReadme.match(/### Choosing a Coding Plan([\s\S]+?)(?=^---|\n## )/m);
+	const choosingMatch = rawReadme.match(/### (?:Choosing a Coding Plan|选择编程方案|如何选择编程方案)([\s\S]+?)(?=^---|\n## )/m);
 	const choosing = choosingMatch ? renderInlineMd(choosingMatch[1].trim()) : '';
 
 	return `<!DOCTYPE html>
@@ -501,7 +503,7 @@ function getHtml(sections: TableSection[], rawReadme: string): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Copilot Alternatives</title>
+<title>目录</title>
 <style>
 :root {
 	--bg: var(--vscode-editor-background, #1e1e2e);
@@ -541,22 +543,18 @@ code { background: var(--vscode-editorWidget-background); padding: 1px 4px; bord
 </style>
 </head>
 <body>
-<h1>🧩 Copilot Alternatives</h1>
-<p class="subtitle">A curated directory of GitHub Copilot alternatives.</p>
+<h1>🧩 ModelMeter — GitHub Copilot 替代方案目录</h1>
+<p class="subtitle">精选的 GitHub Copilot 替代方案目录。</p>
 
-<div class="toc"><h2>Contents</h2><ul>
-${sections.map(s => `<li><a href="#${slug(s.title)}">${s.title}</a></li>`).join('\n')}
+<div class="toc"><h2>目录</h2><ul>
+${sections.map((s, i) => `<li><a href="#sec-${i}">${s.title}</a></li>`).join('\n')}
 </ul></div>
 
-${sections.map(s => `<h2 id="${slug(s.title)}">${s.title}</h2>${s.tableHtml}`).join('\n')}
+${sections.map((s, i) => `<h2 id="sec-${i}">${s.title}</h2>${s.tableHtml}`).join('\n')}
 
-${choosing ? '<h2 id="choosing">Choosing a Coding Plan</h2><div class="note">' + choosing.split('\n').filter(l => l.trim()).join('<br>') + '</div>' : ''}
+${choosing ? '<h2 id="choosing">如何选择编程方案</h2><div class="note">' + choosing.split('\n').filter(l => l.trim()).join('<br>') + '</div>' : ''}
 </body>
 </html>`;
-}
-
-function slug(title: string): string {
-	return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 export function deactivate() {}

@@ -6,6 +6,7 @@
 import * as sqlite3 from '@vscode/sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
+import { IMPORTER_VERSION } from './importerVersion';
 
 // ─── Row types ──────────────────────────────────────────────────────────────
 
@@ -43,7 +44,6 @@ export interface TurnRow {
 	prompt_tokens: number;
 	completion_tokens: number;
 	output_buffer: number | null;
-	copilot_credits: number | null;
 	// Flattened prompt token breakdown percentages (for pie charts)
 	system_instructions_pct: number;
 	tool_definitions_pct: number;
@@ -66,6 +66,7 @@ export interface TurnRow {
 	tool_call_count: number;
 	thinking_tokens: number;
 	estimated_cost_usd: number | null;
+	estimated_cost_cny: number | null;
 }
 
 export interface ProcessedFileRow {
@@ -74,6 +75,8 @@ export interface ProcessedFileRow {
 	file_mtime: number;
 	content_hash: string;
 	last_imported: number;
+	/** Importer logic version that last processed this file (see importerVersion.ts). */
+	importer_version: number;
 }
 
 export interface DashboardSummary {
@@ -84,6 +87,7 @@ export interface DashboardSummary {
 		totalPromptTokens: number;
 		totalCompletionTokens: number;
 		totalCostUsd: number;
+		totalCostCny: number;
 		firstTrackedDate: string;
 		daysTracked: number;
 		sessionCount: number;
@@ -99,6 +103,7 @@ export interface DayTotal {
 	totalCompletionTokens: number;
 	totalTokens: number;
 	estimatedCostUsd: number;
+	estimatedCostCny: number;
 	requestCount: number;
 }
 
@@ -108,8 +113,9 @@ export interface VendorAgg {
 	completionTokens: number;
 	totalTokens: number;
 	costUsd: number;
-	/** Estimated GitHub Copilot AI credits (only meaningful when vendor === 'copilot'). */
-	credits: number;
+	costCny: number;
+	/** Requests whose model had no known price (cost not estimable). */
+	unpricedCount: number;
 	requestCount: number;
 }
 
@@ -118,21 +124,10 @@ export interface ModelAgg {
 	promptTokens: number;
 	completionTokens: number;
 	costUsd: number;
-	/** Estimated GitHub Copilot AI credits (only meaningful when vendor === 'copilot'). */
-	credits: number;
+	costCny: number;
+	/** Requests whose model had no known price (cost not estimable). */
+	unpricedCount: number;
 	requestCount: number;
-}
-
-export interface CopilotModelCreditAgg {
-	modelId: string;
-	credits: number;
-	requestCount: number;
-}
-
-export interface CopilotCreditsSummary {
-	totalCredits: number;
-	requestCount: number;
-	byModel: CopilotModelCreditAgg[];
 }
 
 /** Daily totals grouped by (date, vendor) for stacked vendor time-series charts. */
@@ -143,7 +138,7 @@ export interface VendorDayTotal {
 	totalCompletionTokens: number;
 	totalTokens: number;
 	estimatedCostUsd: number;
-	credits: number;
+	estimatedCostCny: number;
 	requestCount: number;
 }
 
@@ -155,7 +150,7 @@ export interface ModelDayTotal {
 	totalCompletionTokens: number;
 	totalTokens: number;
 	estimatedCostUsd: number;
-	credits: number;
+	estimatedCostCny: number;
 	requestCount: number;
 }
 
@@ -183,12 +178,13 @@ export interface SessionSummary {
 	session_model_name: string | null;
 	session_extension: string | null;
 	has_pending_edits: number;
+	/** Number of imported turns with token data (same basis as the Session Dashboard). */
+	turnCount: number;
 	promptTokens: number;
 	completionTokens: number;
 	totalTokens: number;
 	costUsd: number;
-	/** Estimated/real GitHub Copilot AI credits used by this session (0 for non-Copilot sessions). */
-	credits: number;
+	costCny: number;
 	agent_ids: string | null;
 	first_turn_at: number | null;
 	last_turn_at: number | null;
@@ -213,7 +209,8 @@ CREATE TABLE IF NOT EXISTS processed_files (
 	file_size       INTEGER NOT NULL,
 	file_mtime      INTEGER NOT NULL,
 	content_hash    TEXT NOT NULL,
-	last_imported   INTEGER NOT NULL
+	last_imported   INTEGER NOT NULL,
+	importer_version INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -250,7 +247,6 @@ CREATE TABLE IF NOT EXISTS turns (
 	prompt_tokens       INTEGER DEFAULT 0,
 	completion_tokens   INTEGER DEFAULT 0,
 	output_buffer       INTEGER,
-	copilot_credits     REAL,
 	-- Flattened prompt token breakdown percentages (for pie charts)
 	system_instructions_pct INTEGER DEFAULT 0,
 	tool_definitions_pct    INTEGER DEFAULT 0,
@@ -272,7 +268,8 @@ CREATE TABLE IF NOT EXISTS turns (
 	tool_call_rounds    INTEGER DEFAULT 0,
 	tool_call_count     INTEGER DEFAULT 0,
 	thinking_tokens     INTEGER DEFAULT 0,
-	estimated_cost_usd  REAL
+	estimated_cost_usd  REAL,
+	estimated_cost_cny  REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_turn_session ON turns(session_id);
@@ -310,7 +307,27 @@ export class MetricsDatabase {
 				this._db.run('PRAGMA synchronous = NORMAL');
 				this._db.run('PRAGMA busy_timeout = 5000');
 				this._db.exec(DDL, (err) => {
-					if (err) { reject(err); } else { resolve(); }
+					if (err) { reject(err); return; }
+					// Migration: add estimated_cost_cny to databases created before the
+					// dual-currency (official CNY pricing) upgrade.
+					this._db.all('PRAGMA table_info(turns)', (err2: Error | null, cols: Array<{ name: string }>) => {
+						if (err2) { reject(err2); return; }
+						const afterCny = () => {
+							// Migration: add importer_version to processed_files so files imported
+							// by an older extraction logic are re-imported automatically.
+							this._db.all('PRAGMA table_info(processed_files)', (err3: Error | null, pfCols: Array<{ name: string }>) => {
+								if (err3) { reject(err3); return; }
+								if ((pfCols ?? []).some(c => c.name === 'importer_version')) { resolve(); return; }
+								this._db.run('ALTER TABLE processed_files ADD COLUMN importer_version INTEGER NOT NULL DEFAULT 0', (err4: Error | null) => {
+									if (err4) { reject(err4); } else { resolve(); }
+								});
+							});
+						};
+						if ((cols ?? []).some(c => c.name === 'estimated_cost_cny')) { afterCny(); return; }
+						this._db.run('ALTER TABLE turns ADD COLUMN estimated_cost_cny REAL', (err3: Error | null) => {
+							if (err3) { reject(err3); } else { afterCny(); }
+						});
+					});
 				});
 			});
 		});
@@ -394,14 +411,15 @@ export class MetricsDatabase {
 		hash: string
 	): Promise<void> {
 		await this._run(`
-			INSERT INTO processed_files (file_path, file_size, file_mtime, content_hash, last_imported)
-			VALUES (?, ?, ?, ?, ?)
+			INSERT INTO processed_files (file_path, file_size, file_mtime, content_hash, last_imported, importer_version)
+			VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT(file_path) DO UPDATE SET
 				file_size = excluded.file_size,
 				file_mtime = excluded.file_mtime,
 				content_hash = excluded.content_hash,
-				last_imported = excluded.last_imported
-		`, [filePath, size, mtime, hash, Date.now()]);
+				last_imported = excluded.last_imported,
+				importer_version = excluded.importer_version
+		`, [filePath, size, mtime, hash, Date.now(), IMPORTER_VERSION]);
 	}
 
 	async deleteFileRecord(filePath: string): Promise<void> {
@@ -413,11 +431,35 @@ export class MetricsDatabase {
 		const results = await Promise.all(
 			candidates.map(c =>
 				this.getProcessedFile(c.path).then(existing =>
-					(!existing || existing.file_size !== c.size) ? c.path : null
+					(!existing || existing.file_size !== c.size || (existing.importer_version ?? 0) < IMPORTER_VERSION) ? c.path : null
 				)
 			)
 		);
 		return results.filter((r): r is string => r !== null);
+	}
+
+	/** processed_files statistics for diagnostics (importer-version distribution). */
+	async getProcessedFileStats(): Promise<{ total: number; current: number; stale: number }> {
+		await this._ready;
+		const rows = await this._all<{ importer_version: number | null; n: number }>(
+			'SELECT importer_version, COUNT(*) AS n FROM processed_files GROUP BY importer_version'
+		);
+		let total = 0, current = 0;
+		for (const r of rows) {
+			total += r.n;
+			if ((r.importer_version ?? 0) >= IMPORTER_VERSION) { current += r.n; }
+		}
+		return { total, current, stale: total - current };
+	}
+
+	/** Turns whose model has no official price (N/A), grouped by model — for diagnostics. */
+	async getUnpricedModels(): Promise<Array<{ model_id: string; vendor: string; n: number }>> {
+		await this._ready;
+		return this._all<{ model_id: string; vendor: string; n: number }>(`
+			SELECT model_id, vendor, COUNT(*) AS n FROM turns
+			WHERE estimated_cost_usd IS NULL AND estimated_cost_cny IS NULL
+			GROUP BY model_id ORDER BY n DESC
+		`);
 	}
 
 	// ── Data import ──────────────────────────────────────────────────────
@@ -455,7 +497,7 @@ export class MetricsDatabase {
 				first_progress_ms, total_elapsed_ms, time_spent_waiting,
 				model_id, vendor, model_name, resolved_model,
 				agent_id, agent_extension, agent_name,
-				prompt_tokens, completion_tokens, output_buffer, copilot_credits,
+				prompt_tokens, completion_tokens, output_buffer,
 				system_instructions_pct, tool_definitions_pct, messages_pct, files_pct, tool_results_pct,
 				model_state, vote,
 				user_message_length, user_message_parts,
@@ -463,13 +505,13 @@ export class MetricsDatabase {
 				response_part_count, content_ref_count, code_citation_count,
 				edited_file_count, followup_count, variable_count,
 				tool_call_rounds, tool_call_count, thinking_tokens,
-				estimated_cost_usd
+				estimated_cost_usd, estimated_cost_cny
 			) VALUES (
 				@request_id, @session_id, @timestamp, @completed_at, @elapsed_ms,
 				@first_progress_ms, @total_elapsed_ms, @time_spent_waiting,
 				@model_id, @vendor, @model_name, @resolved_model,
 				@agent_id, @agent_extension, @agent_name,
-				@prompt_tokens, @completion_tokens, @output_buffer, @copilot_credits,
+				@prompt_tokens, @completion_tokens, @output_buffer,
 				@system_instructions_pct, @tool_definitions_pct, @messages_pct, @files_pct, @tool_results_pct,
 				@model_state, @vote,
 				@user_message_length, @user_message_parts,
@@ -477,7 +519,7 @@ export class MetricsDatabase {
 				@response_part_count, @content_ref_count, @code_citation_count,
 				@edited_file_count, @followup_count, @variable_count,
 				@tool_call_rounds, @tool_call_count, @thinking_tokens,
-				@estimated_cost_usd
+				@estimated_cost_usd, @estimated_cost_cny
 			)
 			ON CONFLICT(request_id) DO UPDATE SET
 				timestamp = excluded.timestamp,
@@ -496,7 +538,6 @@ export class MetricsDatabase {
 				prompt_tokens = excluded.prompt_tokens,
 				completion_tokens = excluded.completion_tokens,
 				output_buffer = excluded.output_buffer,
-				copilot_credits = excluded.copilot_credits,
 				system_instructions_pct = excluded.system_instructions_pct,
 				tool_definitions_pct = excluded.tool_definitions_pct,
 				messages_pct = excluded.messages_pct,
@@ -517,7 +558,8 @@ export class MetricsDatabase {
 				tool_call_rounds = excluded.tool_call_rounds,
 				tool_call_count = excluded.tool_call_count,
 				thinking_tokens = excluded.thinking_tokens,
-				estimated_cost_usd = excluded.estimated_cost_usd
+				estimated_cost_usd = excluded.estimated_cost_usd,
+				estimated_cost_cny = excluded.estimated_cost_cny
 		`, row as unknown as Record<string, unknown>);
 	}
 
@@ -537,11 +579,12 @@ export class MetricsDatabase {
 		const cutoff = Date.now() - days * 86400000;
 		return this._all<DayTotal>(`
 			SELECT
-				date(timestamp / 1000, 'unixepoch') AS date,
+				date(timestamp / 1000, 'unixepoch', 'localtime') AS date,
 				SUM(prompt_tokens) AS totalPromptTokens,
 				SUM(completion_tokens) AS totalCompletionTokens,
 				SUM(prompt_tokens + completion_tokens) AS totalTokens,
 				COALESCE(SUM(estimated_cost_usd), 0) AS estimatedCostUsd,
+				COALESCE(SUM(estimated_cost_cny), 0) AS estimatedCostCny,
 				COUNT(*) AS requestCount
 			FROM turns
 			WHERE ${this._completeFilter('timestamp >= ?')}
@@ -561,7 +604,8 @@ export class MetricsDatabase {
 				SUM(completion_tokens) AS completionTokens,
 				SUM(prompt_tokens + completion_tokens) AS totalTokens,
 				COALESCE(SUM(estimated_cost_usd), 0) AS costUsd,
-				COALESCE(SUM(copilot_credits), 0) AS credits,
+				COALESCE(SUM(estimated_cost_cny), 0) AS costCny,
+				SUM(CASE WHEN estimated_cost_usd IS NULL AND estimated_cost_cny IS NULL THEN 1 ELSE 0 END) AS unpricedCount,
 				COUNT(*) AS requestCount
 			FROM turns
 			WHERE ${this._completeFilter('timestamp >= ?')}
@@ -582,7 +626,8 @@ export class MetricsDatabase {
 				SUM(prompt_tokens) AS promptTokens,
 				SUM(completion_tokens) AS completionTokens,
 				COALESCE(SUM(estimated_cost_usd), 0) AS costUsd,
-				COALESCE(SUM(copilot_credits), 0) AS credits,
+				COALESCE(SUM(estimated_cost_cny), 0) AS costCny,
+				SUM(CASE WHEN estimated_cost_usd IS NULL AND estimated_cost_cny IS NULL THEN 1 ELSE 0 END) AS unpricedCount,
 				COUNT(*) AS requestCount
 			FROM turns
 			WHERE ${this._completeFilter(`timestamp >= ?${vendorFilter}`)}
@@ -591,39 +636,13 @@ export class MetricsDatabase {
 		`, params);
 	}
 
-	/** Distinct vendor values ever recorded (all-time, not time-windowed). Used for copilot-usage detection flags. */
-	async getDistinctVendors(): Promise<string[]> {
-		await this._ready;
-		const rows = await this._all<{ vendor: string }>(`
-			SELECT DISTINCT vendor FROM turns WHERE ${this._completeFilter()}
-		`);
-		return rows.map(r => r.vendor);
-	}
-
-	/** Estimated AI credits used by Copilot-vendor requests since `cycleStartMs`. */
-	async getCopilotCreditsSummary(cycleStartMs: number): Promise<CopilotCreditsSummary> {
-		await this._ready;
-		const byModel = await this._all<CopilotModelCreditAgg>(`
-			SELECT
-				model_id AS modelId,
-				COALESCE(SUM(copilot_credits), 0) AS credits,
-				COUNT(*) AS requestCount
-			FROM turns
-			WHERE ${this._completeFilter("vendor = 'copilot' AND timestamp >= ?")}
-			GROUP BY model_id
-			ORDER BY credits DESC
-		`, [cycleStartMs]);
-		const totals = byModel.reduce((acc, m) => ({
-			totalCredits: acc.totalCredits + m.credits,
-			requestCount: acc.requestCount + m.requestCount,
-		}), { totalCredits: 0, requestCount: 0 });
-		return { ...totals, byModel };
-	}
-
 	async getDashboardSummary(days = 30): Promise<DashboardSummary> {
 		await this._ready;
 
-		const todayKey = new Date().toISOString().split('T')[0];
+		// Local-time YYYY-MM-DD — day buckets are grouped by local date in SQL,
+		// so an ISO/UTC key would mismatch between 00:00–08:00 for UTC+8 users.
+		const _now = new Date();
+		const todayKey = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
 		const cutoff = Date.now() - days * 86400000;
 
 		const [weekTotals, monthTotals, vendorBreakdown, modelBreakdown] = await Promise.all([
@@ -639,6 +658,7 @@ export class MetricsDatabase {
 			totalCompletionTokens: 0,
 			totalTokens: 0,
 			estimatedCostUsd: 0,
+			estimatedCostCny: 0,
 			requestCount: 0,
 		};
 
@@ -646,13 +666,15 @@ export class MetricsDatabase {
 			totalPromptTokens: number;
 			totalCompletionTokens: number;
 			totalCostUsd: number;
+			totalCostCny: number;
 			firstTrackedDate: string | null;
 		}>(`
 			SELECT
 				COALESCE(SUM(prompt_tokens), 0) AS totalPromptTokens,
 				COALESCE(SUM(completion_tokens), 0) AS totalCompletionTokens,
 				COALESCE(SUM(estimated_cost_usd), 0) AS totalCostUsd,
-				MIN(date(timestamp / 1000, 'unixepoch')) AS firstTrackedDate
+				COALESCE(SUM(estimated_cost_cny), 0) AS totalCostCny,
+				MIN(date(timestamp / 1000, 'unixepoch', 'localtime')) AS firstTrackedDate
 			FROM turns
 			WHERE ${this._completeFilter('timestamp >= ?')}
 		`, [cutoff]);
@@ -663,7 +685,7 @@ export class MetricsDatabase {
 				(SELECT COUNT(*) FROM turns WHERE ${this._completeFilter('timestamp >= ?')}) AS requestCount
 		`, [cutoff]);
 
-		const safeAllTime = allTime ?? { totalPromptTokens: 0, totalCompletionTokens: 0, totalCostUsd: 0, firstTrackedDate: null };
+		const safeAllTime = allTime ?? { totalPromptTokens: 0, totalCompletionTokens: 0, totalCostUsd: 0, totalCostCny: 0, firstTrackedDate: null };
 		const safeCounts = counts ?? { sessionCount: 0, requestCount: 0 };
 		const firstDate = safeAllTime.firstTrackedDate ?? todayKey;
 		const daysTracked = Math.max(1, Math.ceil(
@@ -678,6 +700,7 @@ export class MetricsDatabase {
 				totalPromptTokens: safeAllTime.totalPromptTokens,
 				totalCompletionTokens: safeAllTime.totalCompletionTokens,
 				totalCostUsd: safeAllTime.totalCostUsd,
+				totalCostCny: safeAllTime.totalCostCny,
 				firstTrackedDate: firstDate,
 				daysTracked,
 				sessionCount: safeCounts.sessionCount,
@@ -698,13 +721,13 @@ export class MetricsDatabase {
 		params.push(days * 20);
 		return this._all<VendorDayTotal>(`
 			SELECT
-				date(timestamp / 1000, 'unixepoch') AS date,
+				date(timestamp / 1000, 'unixepoch', 'localtime') AS date,
 				vendor,
 				SUM(prompt_tokens) AS totalPromptTokens,
 				SUM(completion_tokens) AS totalCompletionTokens,
 				SUM(prompt_tokens + completion_tokens) AS totalTokens,
 				COALESCE(SUM(estimated_cost_usd), 0) AS estimatedCostUsd,
-				COALESCE(SUM(copilot_credits), 0) AS credits,
+				COALESCE(SUM(estimated_cost_cny), 0) AS estimatedCostCny,
 				COUNT(*) AS requestCount
 			FROM turns
 			WHERE ${this._completeFilter(`timestamp >= ?${vendorFilter}`)}
@@ -726,13 +749,13 @@ export class MetricsDatabase {
 		params.push(days * 30);
 		return this._all<ModelDayTotal>(`
 			SELECT
-				date(timestamp / 1000, 'unixepoch') AS date,
+				date(timestamp / 1000, 'unixepoch', 'localtime') AS date,
 				model_id AS modelId,
 				SUM(prompt_tokens) AS totalPromptTokens,
 				SUM(completion_tokens) AS totalCompletionTokens,
 				SUM(prompt_tokens + completion_tokens) AS totalTokens,
 				COALESCE(SUM(estimated_cost_usd), 0) AS estimatedCostUsd,
-				COALESCE(SUM(copilot_credits), 0) AS credits,
+				COALESCE(SUM(estimated_cost_cny), 0) AS estimatedCostCny,
 				COUNT(*) AS requestCount
 			FROM turns
 			WHERE ${this._completeFilter(`timestamp >= ?${extraFilter}`)}
@@ -781,7 +804,7 @@ export class MetricsDatabase {
 	async getFirstTrackedDate(): Promise<{ firstTrackedDate: string } | null | undefined> {
 		await this._ready;
 		return this._get<{ firstTrackedDate: string }>(
-			`SELECT MIN(date(timestamp / 1000, 'unixepoch')) AS firstTrackedDate FROM turns WHERE ${this._completeFilter()}`
+			`SELECT MIN(date(timestamp / 1000, 'unixepoch', 'localtime')) AS firstTrackedDate FROM turns WHERE ${this._completeFilter()}`
 		);
 	}
 
@@ -789,7 +812,11 @@ export class MetricsDatabase {
 
 	/**
 	 * List sessions with aggregated turn stats, optionally within a
-	 * time window and filtered by vendor/model/agent/search text.
+	 * time window and filtered by model.
+	 *
+	 * The turn aggregate only counts completed turns with real token data —
+	 * the same filter used by every dashboard query — so the session list and
+	 * the Session Dashboard always report the same turns.
 	 */
 	async listSessions(
 		days: number,
@@ -805,7 +832,11 @@ export class MetricsDatabase {
 		conditions.push('(t.last_turn IS NULL OR t.last_turn >= ?)');
 		params.push(cutoff);
 
-		if (filters?.modelName) { conditions.push('t.model_name = ?'); params.push(filters.modelName); }
+		// A session matches when ANY of its turns used the target model.
+		if (filters?.modelName) {
+			conditions.push('EXISTS (SELECT 1 FROM turns tx WHERE tx.session_id = s.session_id AND tx.model_name = ?)');
+			params.push(filters.modelName);
+		}
 
 		const where = `WHERE ${conditions.join(' AND ')}`;
 
@@ -818,12 +849,12 @@ export class MetricsDatabase {
 				s.session_model_name,
 				s.session_extension,
 				s.has_pending_edits,
-				s.request_count AS request_count,
+				COALESCE(t.turn_count, 0) AS turnCount,
 				COALESCE(t.prompt_tokens, 0) AS promptTokens,
 				COALESCE(t.completion_tokens, 0) AS completionTokens,
 				COALESCE(t.total_tokens, 0) AS totalTokens,
 				COALESCE(t.cost_usd, 0) AS costUsd,
-				COALESCE(t.credits, 0) AS credits,
+				COALESCE(t.cost_cny, 0) AS costCny,
 				t.agent_ids,
 				t.first_turn AS first_turn_at,
 				t.last_turn AS last_turn_at
@@ -831,16 +862,17 @@ export class MetricsDatabase {
 			LEFT JOIN (
 				SELECT
 					session_id,
+					COUNT(*) AS turn_count,
 					SUM(prompt_tokens) AS prompt_tokens,
 					SUM(completion_tokens) AS completion_tokens,
 					SUM(prompt_tokens + completion_tokens) AS total_tokens,
 					COALESCE(SUM(estimated_cost_usd), 0) AS cost_usd,
-					COALESCE(SUM(copilot_credits), 0) AS credits,
+					COALESCE(SUM(estimated_cost_cny), 0) AS cost_cny,
 					GROUP_CONCAT(DISTINCT agent_id) AS agent_ids,
 					MIN(timestamp) AS first_turn,
-					MAX(timestamp) AS last_turn,
-					MAX(model_name) AS model_name
+					MAX(timestamp) AS last_turn
 				FROM turns
+				WHERE ${this._completeFilter()}
 				GROUP BY session_id
 			) t ON s.session_id = t.session_id
 			${where}
@@ -851,13 +883,14 @@ export class MetricsDatabase {
 
 	/**
 	 * Get the full detail for a single session: its SessionRow and all TurnRows.
+	 * Only completed turns with token data are returned, matching the session list.
 	 */
 	async getSessionDetail(sessionId: string): Promise<SessionDetail | null> {
 		await this._ready;
 		const [session, turns] = await Promise.all([
 			this._get<SessionRow>('SELECT * FROM sessions WHERE session_id = ?', [sessionId]),
 			this._all<TurnRow>(
-				'SELECT * FROM turns WHERE session_id = ? ORDER BY timestamp ASC',
+				`SELECT * FROM turns WHERE session_id = ? AND ${this._completeFilter()} ORDER BY timestamp ASC`,
 				[sessionId],
 			),
 		]);

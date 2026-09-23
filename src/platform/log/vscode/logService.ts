@@ -9,11 +9,26 @@ import { ILogTarget, LogLevel } from '../common/logService';
 
 /**
  * Log target that writes to VS Code's LogOutputChannel.
+ *
+ * Messages below `minLevel` are dropped here (not just by the channel's own
+ * level), so the default "normal" mode stays quiet: summaries + warnings +
+ * errors only. Set `modelMeter.logLevel = "debug"` (or call
+ * `setMinLevel`) to surface detailed diagnostics.
  */
 export class VSCodeLogTarget implements ILogTarget {
-	constructor(private readonly _channel: vscode.LogOutputChannel) {}
+	private _minLevel: LogLevel;
+
+	constructor(private readonly _channel: vscode.LogOutputChannel, minLevel: LogLevel = LogLevel.Info) {
+		this._minLevel = minLevel;
+	}
+
+	/** Changes the minimum level for subsequent messages (config change / debug toggle). */
+	setMinLevel(level: LogLevel): void {
+		this._minLevel = level;
+	}
 
 	logIt(level: LogLevel, message: string): void {
+		if (level < this._minLevel) { return; }
 		switch (level) {
 			case LogLevel.Trace: this._channel.trace(message); break;
 			case LogLevel.Debug: this._channel.debug(message); break;

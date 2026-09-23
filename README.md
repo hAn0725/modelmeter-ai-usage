@@ -1,20 +1,19 @@
-# Copilot Alternatives
+# ModelMeter — AI 用量监控
 
-A curated collection of GitHub Copilot alternatives for developers, teams, and organizations.
+面向开发者、团队与组织的 GitHub Copilot 替代方案精选合集。
 
-Recent changes to AI coding assistant pricing, usage limits, and licensing models have prompted many developers to re-evaluate their tooling choices. This repository aims to provide an objective reference for the growing ecosystem of AI-powered coding tools.
+AI 编程助手的定价、用量限制与授权模式不断变化，许多开发者正在重新评估自己的工具选择。本仓库旨在为不断增长的 AI 编程工具生态提供一份客观参考。
 
-> ### 🧩 Try the companion VS Code extension
+> ### 🧩 试试配套的 VS Code 扩展
 >
-> This repo also ships a free, open-source VS Code extension — **[Copilot & BYOK Usage Tracker](https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives)** — that puts this directory in your sidebar, tracks your usage, and manages BYOK providers:
+> 本仓库同时提供一个免费开源的 VS Code 扩展 —— **[ModelMeter - AI 用量监控](https://marketplace.visualstudio.com/items?itemName=hAn0725.modelmeter-ai-usage)** —— 统计用量并回看会话：
 >
-> - **Usage tracking** for GitHub Copilot **AI credits** and BYOK token/cost usage (DeepSeek, Mistral, OpenRouter, Qwen, Kimi, GLM/Z.ai, MiniMax, MiMo, and more), per vendor and per model
-> - **Session history & analysis** — browse past chat sessions with full turn-by-turn token, latency, and tool-call detail
-> - See a **Monthly Credit Quota** tile against your actual Copilot plan allowance
-> - **BYOK key management** — add, edit, and remove providers visually, no hand-editing `chatLanguageModels.json`
-> - Browse this entire 100+ tool directory from the Activity Bar
+> - **用量统计** —— 按厂商与模型统计 GitHub Copilot 与第三方 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等）的 Token 消耗与预估费用（¥）
+> - **会话历史与分析** —— 浏览历史聊天会话的逐轮 Token、耗时与工具调用详情
 >
-> 📖 See [`EXTENSION_README.md`](EXTENSION_README.md) for full feature details, or install it directly from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives).
+> 📖 完整功能说明见 [`EXTENSION_README.md`](EXTENSION_README.md)，或直接从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives) 安装。
+>
+> ℹ️ **ModelMeter 基于 [feimacode/copilot-alternatives](https://github.com/feimacode/copilot-alternatives) 修改，为独立社区分支，并非原项目官方产品。**
 
 The focus is on solutions that support one or more of the following:
 
@@ -30,41 +29,7 @@ The focus is on solutions that support one or more of the following:
 
 ---
 
-## BYOK Chat Language Model Templates
-
-Pre-configured `chatLanguageModels.json` templates for popular AI providers. Copy-paste into VS Code's chat language model configuration to use your own API keys.
-
-| Provider | Template | Description | API Key |
-|---|---|---|---|
-| **OpenCode Go** | [single](byok-templates/opencode-go.single.chatLanguageModels.json) · [multi](byok-templates/opencode-go.multi.chatLanguageModels.json) | $5 first month, $10/mo. 11 models across OpenAI + Anthropic formats | [Get key](https://opencode.ai/auth) |
-| **ClinePass** | [single](byok-templates/clinepass.single.chatLanguageModels.json) · [multi](byok-templates/clinepass.multi.chatLanguageModels.json) | $9.99/mo. 10 curated models via OpenAI-compatible API | [Get key](https://app.cline.bot) |
-| **Alibaba Coding Plan** | [cn](byok-templates/ali-coding-plan.cn.single.chatLanguageModels.json) · [global](byok-templates/ali-coding-plan.global.single.chatLanguageModels.json) · [multi](byok-templates/ali-coding-plan.cn.multi.chatLanguageModels.json) | Alibaba Coding Plan — 9 models via OpenAI-compatible API | [Get key](https://www.alibabacloud.com/help/en/model-studio/coding-plan) |
-| **Alibaba Token Plan** | [cn](byok-templates/ali-token-plan.cn.single.chatLanguageModels.json) · [global](byok-templates/ali-token-plan.global.single.chatLanguageModels.json) · [multi](byok-templates/ali-token-plan.cn.multi.chatLanguageModels.json) | Alibaba Token Plan — 13 models via OpenAI-compatible API | [Get key](https://www.alibabacloud.com/help/en/model-studio/coding-plan) |
-| **Feima Code** | [`feimacode.chatLanguageModels.json`](byok-templates/feimacode.chatLanguageModels.json) | 15 curated coding models via OpenAI-compatible API | [Get key](https://feimacode.com/use-api-keys) |
-| **DeepSeek** | [`deepseek.chatLanguageModels.json`](byok-templates/deepseek.chatLanguageModels.json) | DeepSeek API — V4 Pro, V4 Flash, R1 | [Get key](https://platform.deepseek.com/api_keys) |
-| **Mistral** | [`mistral.chatLanguageModels.json`](byok-templates/mistral.chatLanguageModels.json) | Mistral API — Mistral Large, Codestral | [Get key](https://console.mistral.ai/api-keys/) |
-| **OpenRouter** | [`openrouter.chatLanguageModels.json`](byok-templates/openrouter.chatLanguageModels.json) | Access 200+ models via a single API | [Get key](https://openrouter.ai/keys) |
-| **BytePlus** | [single](byok-templates/byteplus.single.chatLanguageModels.json) · [multi](byok-templates/byteplus.multi.chatLanguageModels.json) | BytePlus Coding Plan — 8 models via OpenAI-compatible API | [Get key](https://console.byteplus.com) |
-| **Z.ai (Global)** | [single](byok-templates/zai-coding-plan.global.single.chatLanguageModels.json) · [multi](byok-templates/zai-coding-plan.global.multi.chatLanguageModels.json) | GLM Coding Plan — 5 GLM models via OpenAI-compatible API | [Get key](https://z.ai/manage-apikey/apikey-list) |
-| **Z.ai (CN)** | [single](byok-templates/zai-coding-plan.cn.single.chatLanguageModels.json) · [multi](byok-templates/zai-coding-plan.cn.multi.chatLanguageModels.json) | GLM Coding Plan (CN) — 5 GLM models via bigmodel.cn endpoint | [Get key](https://bigmodel.cn/usercenter/apikeys) |
-| **Kimi** | [single](byok-templates/kimi-coding-plan.single.chatLanguageModels.json) · [multi](byok-templates/kimi-coding-plan.multi.chatLanguageModels.json) | Kimi Coding Plan — 5 models via OpenAI-compatible API | [Get key](https://platform.kimi.com/console/api-keys) |
-| **Baidu Token Plan (CN)** | [single](byok-templates/baidu-token-plan.cn.single.chatLanguageModels.json) · [multi](byok-templates/baidu-token-plan.cn.multi.chatLanguageModels.json) | Baidu Token Plan — 6 models (ERNIE, GLM, DeepSeek, Kimi) via OpenAI-compatible API | [Get key](https://console.bce.baidu.com/qianfan/resource/token-plan) |
-
-### How to Use Manually
-
-1. Open a `.chatLanguageModels.json` file from the table above
-2. Copy the entire contents (a JSON array `[...]`)
-3. Paste it into your `chatLanguageModels.json` (append to existing array, or replace it entirely)
-4. Open VS Code's **Chat: Manage Language Models** command
-5. For each group, click the gear icon and enter your API key
-6. VS Code encrypts the key in the OS keystore and replaces `"YOUR_API_KEY_HERE"` with `"${input:chat.lm.secret.xxx}"`
-
-> **Tip:** You can also import templates programmatically via the companion VS Code extension. Run `BYOK: Add Provider` from the command palette. See [`byok-templates/README.md`](byok-templates/README.md) for details.
-
-
----
-
-## Goals
+## 目标
 
 - Provide a vendor-neutral comparison of available options
 - Help developers discover tools that match their workflow and budget
@@ -74,7 +39,7 @@ Pre-configured `chatLanguageModels.json` templates for popular AI providers. Cop
 
 ---
 
-## Categories
+## 分类
 
 - [Coding Plans](#coding-plans)
 - [IDEs & Editors](#ides--editors)
@@ -90,11 +55,11 @@ Pre-configured `chatLanguageModels.json` templates for popular AI providers. Cop
 
 ---
 
-## Coding Plans
+## 编程方案
 
 Subscription-based AI coding services that provide access to coding-capable models through IDE integrations, CLI tools, or API endpoints. These plans typically offer fixed monthly pricing with usage quotas, distinct from pay-per-use API billing. Ideal for developers who want predictable costs and generous quotas for agent-based coding workflows.
 
-### IDE-Native Coding Plans
+### 原生 IDE 编程方案
 
 Subscriptions tied to specific AI-powered IDEs, often including model access and agent features.
 
@@ -113,7 +78,7 @@ Subscriptions tied to specific AI-powered IDEs, often including model access and
 | [Zed Pro](https://zed.dev/pricing) | $10/mo | $5 of tokens included | Unlimited edit predictions, usage-based beyond included |
 | [Trae Pro](https://trae.ai/pricing) | $10/mo | $20 basic + bonus usage | Unlimited autocomplete, 7-day free trial |
 
-### CLI-Native Coding Plans
+### 原生 CLI 编程方案
 
 Subscriptions designed for terminal-based coding agents and CLI workflows.
 
@@ -140,7 +105,7 @@ Subscriptions designed for terminal-based coding agents and CLI workflows.
 | [StepFun Flash Pro](https://stepfun.com) | $29/mo | 1,500 prompts (~22,500 req)/5h | Priority API access, priority support, 15x Flash Mini |
 | [StepFun Flash Max](https://stepfun.com) | $99/mo | 5,000 prompts (~75,000 req)/5h | Priority API access, priority support, 50x Flash Mini |
 
-### Multi-Model Coding Plans (BYOK-Friendly)
+### 多模型编程方案（BYOK 友好）
 
 Subscriptions that provide access to multiple models through OpenAI/Anthropic-compatible APIs, usable with various coding tools (Claude Code, Cursor, Cline, Roo Code, etc.).
 
@@ -169,7 +134,7 @@ Subscriptions that provide access to multiple models through OpenAI/Anthropic-co
 | [Kimi Allegro](https://www.kimi.com/membership/pricing) | $79/mo (annual) / $99/mo (monthly) | 15x Kimi Code credits | Kimi-K2.5 | 5x agent credits, Agent Swarm, Kimi Work scheduled tasks |
 | [Kimi Vivace](https://www.kimi.com/membership/pricing) | $159/mo (annual) / $199/mo (monthly) | 30x Kimi Code credits | Kimi-K2.5 | 10x agent credits, maximum concurrent tasks |
 
-### Aggregators & Plugins
+### 聚合器与插件
 
 Platforms that aggregate multiple model providers behind a single subscription or API, or provide plugin-based access to coding models.
 
@@ -209,7 +174,7 @@ Platforms that aggregate multiple model providers behind a single subscription o
 | [Cerebras Max](https://cerebras.ai) | $200/mo | 120M tokens/day | Cerebras models | — |
 | [AI Router Unlimited](https://airouter.io) | CHF 39/mo | Unlimited Qwen3.6 + Gemma-4 | Qwen3.6, Gemma-4 | Swiss-hosted, no prompt logging, 3 parallel req, 240 req/min, 10M tok/min fair-use |
 
-### Free Coding Options
+### 免费编程选项
 
 No-cost options with usage limits, suitable for light coding tasks or experimentation.
 
@@ -227,7 +192,7 @@ No-cost options with usage limits, suitable for light coding tasks or experiment
 | [Ollama](https://ollama.com) | Free | Unlimited local | Run open-weight models locally (llama.cpp) |
 
 
-### Choosing a Coding Plan
+### 如何选择编程方案
 
 **Consider these factors when selecting a plan:**
 
@@ -247,7 +212,7 @@ No-cost options with usage limits, suitable for light coding tasks or experiment
 
 ---
 
-## IDEs & Editors
+## IDE 与编辑器
 
 Full AI-native development environments — editors built around AI from the ground up rather than retrofitted with a plugin.
 
@@ -263,7 +228,7 @@ Full AI-native development environments — editors built around AI from the gro
 
 ---
 
-## CLI Agents
+## CLI 智能体
 
 Terminal-based and agentic coding tools that operate in your shell, often capable of multi-step autonomous tasks.
 
@@ -283,7 +248,7 @@ Terminal-based and agentic coding tools that operate in your shell, often capabl
 
 ---
 
-## Extensions & Plugins
+## 扩展与插件
 
 AI coding assistants delivered as extensions for existing editors — VS Code, JetBrains, Neovim, Emacs, and others.
 
@@ -303,7 +268,7 @@ AI coding assistants delivered as extensions for existing editors — VS Code, J
 
 ---
 
-## BYOK Solutions
+## BYOK 服务
 
 Bring-Your-Own-Key tools that use API keys you supply, giving you full control over model choice and cost.
 
@@ -321,7 +286,7 @@ Bring-Your-Own-Key tools that use API keys you supply, giving you full control o
 
 ---
 
-## Self-Hosted Platforms
+## 自托管平台
 
 On-premise and self-hosted options that keep code and data within your own infrastructure.
 
@@ -337,7 +302,7 @@ On-premise and self-hosted options that keep code and data within your own infra
 
 ---
 
-## Open-Source Projects
+## 开源项目
 
 Community-maintained tools with open licenses — auditable, forkable, and free to self-host or modify.
 
@@ -357,7 +322,7 @@ Community-maintained tools with open licenses — auditable, forkable, and free 
 
 ---
 
-## Enterprise Solutions
+## 企业方案
 
 AI coding platforms designed for teams and organizations, with features like SSO, audit logs, policy controls, and on-prem options.
 
@@ -374,7 +339,7 @@ AI coding platforms designed for teams and organizations, with features like SSO
 
 ---
 
-## Model Providers
+## 模型服务商
 
 Underlying LLM providers that power coding assistants. Many BYOK tools let you plug in any of these directly.
 
@@ -395,11 +360,11 @@ Underlying LLM providers that power coding assistants. Many BYOK tools let you p
 
 ---
 
-## Model → Plan Mapping
+## 模型 → 方案对照
 
 Which coding plans include access to specific models. BYOK tools (Cursor, Cline, Continue, Aider, etc.) can use any model via API key.
 
-### Claude Models
+### Claude 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -407,7 +372,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | Claude Sonnet 4.6 | Claude Pro, Claude Pro Max 5X, Claude Pro Max 20X | Cursor, Cline, Continue, Aider, Amazon Q Developer Pro, Kiro Free |
 | Claude (general) | Cursor Pro/Pro+/Ultra, Devin Pro/Max/Teams, Kiro Pro/Pro+/Power, Amazon Q Developer Pro | All BYOK tools |
 
-### GPT Models
+### GPT 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -416,7 +381,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | GPT-5.5 Pro | Codex (ChatGPT Pro) | Cursor, Cline, Continue, Aider |
 | GPT-4o | Cursor Pro/Pro+/Ultra, Devin Pro/Max/Teams, Kiro Pro/Pro+/Power | All BYOK tools |
 
-### Gemini Models
+### Gemini 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -424,7 +389,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | Gemini 2.5 Flash | Google AI Pro, Google AI Ultra | Cursor, Cline, Continue, Aider |
 | Gemini (general) | Google AI Free (limited), Google Gemini Code Assist Enterprise | All BYOK tools |
 
-### DeepSeek Models
+### DeepSeek 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -434,7 +399,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | DeepSeek V3 | Alibaba Coding Plan Pro | Cursor, Cline, Continue, Aider |
 | DeepSeek R1 | Alibaba Coding Plan Pro | Cursor, Cline, Continue, Aider |
 
-### Qwen Models
+### Qwen 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -447,7 +412,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | Qwen3.5 Plus | Feima Copilot (Starter/Value/Pro) | Cursor, Cline, Continue, Aider |
 | Qwen2.5-Coder | Ollama (local), Fireworks AI, Together AI | Cursor, Cline, Continue, Aider |
 
-### GLM Models
+### GLM 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -455,7 +420,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | GLM-5.1 | BytePlus ModelArk (Lite/Pro), Z.ai GLM (Lite/Pro/Max) | Cursor, Cline, Continue, Aider |
 | GLM-5 | Alibaba Coding Plan Pro | Cursor, Cline, Continue, Aider |
 
-### Kimi Models
+### Kimi 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -464,7 +429,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | Kimi-K2.5 | BytePlus ModelArk (Lite/Pro), Alibaba Coding Plan Pro, Feima Copilot (Starter/Value/Pro) | Cursor, Cline, Continue, Aider |
 | Kimi-K2.5 (Kimi Code) | Kimi Moderato, Kimi Allegretto, Kimi Allegro, Kimi Vivace | Cursor, Cline, Continue, Aider |
 
-### MiniMax Models
+### MiniMax 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -472,14 +437,14 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | MiniMax-M2.7 | MiniMax Token Plan (Lite/Standard/Pro) | Cursor, Cline, Continue, Aider |
 | MiniMax-M2.5 | Alibaba Coding Plan Pro, Feima Copilot (Starter/Value/Pro) | Cursor, Cline, Continue, Aider |
 
-### Llama Models
+### Llama 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
 | Llama 3.x | Ollama (local), Groq (hosted), Fireworks AI, Together AI | All BYOK tools |
 | Llama 4 | Ollama (local), Fireworks AI, Together AI | All BYOK tools |
 
-### Other Models
+### 其他模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -489,7 +454,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | Codestral | Mistral AI (API), Mistral AI Pro | Cursor, Cline, Continue, Aider |
 | Mistral Large | Mistral AI (API), Mistral AI Pro | Cursor, Cline, Continue, Aider |
 
-### Grok Models
+### Grok 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -497,20 +462,20 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | Grok 4.1 | xAI SuperGrok | Cursor, Cline, Continue, Aider |
 | Grok 4 Heavy | xAI SuperGrok Heavy | Cursor, Cline, Continue, Aider |
 
-### MiMo Models
+### MiMo 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
 | MiMo-V2.5-Pro | Xiaomi MiMo (Lite/Standard/Pro/Max), ClinePass | Cursor, Cline, Continue, Aider, OpenCode Go |
 | MiMo-V2.5 | Xiaomi MiMo (Lite/Standard/Pro/Max), ClinePass | Cursor, Cline, Continue, Aider, OpenCode Go |
 
-### StepFun Models
+### StepFun 模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
 | StepFun (all models) | StepFun Flash (Mini/Plus/Pro/Max) | Cursor, Cline, Continue, Aider |
 
-### Aggregator Models
+### 聚合器模型
 
 | Model | Coding Plans | BYOK Tools |
 |---|---|---|
@@ -527,11 +492,11 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 
 ---
 
-## Pricing Comparisons
+## 价格对比
 
 > Prices as of mid-2026. Always verify with the vendor — pricing changes frequently.
 
-### Individual / Developer Plans
+### 个人 / 开发者方案
 
 | Tool | Free Tier | Paid Tier | Notes |
 |---|---|---|---|
@@ -562,7 +527,7 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 | Cerebras | No | $50/mo (Pro) | $200/mo (Max) |
 | AI Router | No | CHF 39/mo (Unlimited) | Swiss-hosted, no prompt logging |
 
-### Team / Enterprise Plans
+### 团队 / 企业方案
 
 | Tool | Per-Seat Price | Min Seats | Notes |
 |---|---|---|---|
@@ -576,42 +541,42 @@ Which coding plans include access to specific models. BYOK tools (Cursor, Cline,
 
 ---
 
-## Migration Guides
+## 迁移指南
 
-### Setting Up BYOK / Custom Endpoints for VSCode
+### 为 VS Code 配置 BYOK / 自定义端点
 For detailed instructions on configuring custom model endpoints in VS Code, see [Add a custom endpoint model](https://code.visualstudio.com/docs/agent-customization/language-models#_add-a-custom-endpoint-model)
 
-### Setting Up BYOK for GitHub Copilot CLI
+### 为 GitHub Copilot CLI 配置 BYOK
 1. Install GitHub Copilot CLI: `gh extension install github/gh-copilot`
 2. Configure custom models following the [Use BYOK models guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models)
 3. Supported providers include Anthropic, OpenAI, Google, Azure OpenAI, and any OpenAI-compatible endpoint
 4. Add your API keys via environment variables or configuration files
 5. Use `gh copilot` in your terminal with your chosen model
 
-### From GitHub Copilot to Cursor
+### 从 GitHub Copilot 迁移到 Cursor
 1. Install [Cursor](https://cursor.sh) — it's a VS Code fork, so your extensions and settings transfer
 2. Sign in and choose your preferred model (Claude, GPT-4o, or BYOK)
 3. Cursor imports your VS Code `keybindings.json` and `settings.json` automatically
 
-### From GitHub Copilot to Continue (VS Code, BYOK)
+### 从 GitHub Copilot 迁移到 Continue（VS Code，BYOK）
 1. Install the [Continue extension](https://marketplace.visualstudio.com/items?itemName=Continue.continue)
 2. Add your API key (Anthropic, OpenAI, Gemini, or point to a local Ollama instance)
 3. Configure `~/.continue/config.json` to set your preferred model and context providers
 4. Inline completions replace Copilot's tab-complete; `Ctrl+I` opens the chat panel
 
-### From GitHub Copilot to Aider (CLI)
+### 从 GitHub Copilot 迁移到 Aider（CLI）
 1. `pip install aider-chat`
 2. Set your API key: `export ANTHROPIC_API_KEY=...` or `export OPENAI_API_KEY=...`
 3. Run `aider` in your repo — it reads your git history for context
 4. Use `/add <file>` to include files in context, then describe changes in plain English
 
-### From GitHub Copilot to Codeium (drop-in free replacement)
+### 从 GitHub Copilot 迁移到 Codeium（免费替代）
 1. Uninstall the GitHub Copilot extension
 2. Install [Codeium for VS Code](https://marketplace.visualstudio.com/items?itemName=Codeium.codeium) or the JetBrains plugin
 3. Sign up for a free account — no credit card required
 4. Autocomplete and chat work out of the box with no API key needed
 
-### Going fully local (privacy-first)
+### 完全本地化（隐私优先）
 1. Install [Ollama](https://ollama.com) and pull a coding model: `ollama pull qwen2.5-coder:7b`
 2. Install [Continue](https://continue.dev) in VS Code
 3. Point Continue at `http://localhost:11434` (Ollama's default endpoint)
@@ -619,7 +584,7 @@ For detailed instructions on configuring custom model endpoints in VS Code, see 
 
 ---
 
-## Contributing
+## 贡献
 
 Contributions are welcome. Please help keep information accurate, current, and vendor-neutral.
 

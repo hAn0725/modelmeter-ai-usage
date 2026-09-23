@@ -1,21 +1,21 @@
 {
-	"name": "copilot-alternatives",
-	"displayName": "Copilot & BYOK Usage Tracker",
-	"description": "BYOK usage tracking, cost dashboard, and session analysis for GitHub Copilot & BYOK (DeepSeek, Mistral, OpenRouter, Qwen, Kimi K3, GLM/Z.ai, MiniMax, MiMo). Manage providers visually; browse 100+ AI coding tools.",
-	"version": "0.1.12",
-	"publisher": "feima",
+	"name": "modelmeter-ai-usage",
+	"displayName": "ModelMeter - AI 用量监控",
+	"description": "ModelMeter — 面向 VS Code AI Chat 的多模型用量、官方 API 成本与会话分析工具。支持 GitHub Copilot 与 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等），提供人民币费用仪表盘与会话统计。",
+	"version": "0.2.0",
+	"publisher": "hAn0725",
 	"license": "MIT",
-	"icon": "assets/icon.png",
+	"icon": "resources/modelmeter-icon.png",
 	"galleryBanner": {
 		"color": "#1e1e2e",
 		"theme": "dark"
 	},
-	"homepage": "https://github.com/feimacode/copilot-alternatives",
-	"bugs": "https://github.com/feimacode/copilot-alternatives/issues",
+	"homepage": "https://github.com/hAn0725/modelmeter-ai-usage#readme",
+	"bugs": "https://github.com/hAn0725/modelmeter-ai-usage/issues",
 	"badges": [
 		{
-			"url": "https://img.shields.io/github/license/feimacode/copilot-alternatives",
-			"href": "https://github.com/feimacode/copilot-alternatives/blob/main/LICENSE",
+			"url": "https://img.shields.io/github/license/hAn0725/modelmeter-ai-usage",
+			"href": "https://github.com/hAn0725/modelmeter-ai-usage/blob/main/LICENSE",
 			"description": "MIT License"
 		}
 	],
@@ -29,67 +29,25 @@
 		"Other"
 	],
 	"keywords": [
-		"copilot",
-		"alternatives",
-		"cursor",
-		"cline",
-		"codeium",
-		"continue",
-		"aider",
-		"opencode",
-		"coding-plans",
 		"ai",
-		"byok",
-		"self-hosted",
-		"pricing",
-		"comparison",
-		"marketplace",
-		"directory",
-		"claude",
-		"gemini",
-		"ollama",
-		"usage tracking",
-		"usage tracker",
-		"token usage",
-		"cost tracking",
-		"session history",
-		"session analysis",
-		"analytics",
-		"dashboard",
-		"credits",
-		"ai credits",
-		"key management",
-		"api keys",
-		"model management",
+		"token",
+		"usage",
+		"cost",
+		"llm",
 		"deepseek",
-		"mistral",
-		"openrouter",
-		"byteplus",
 		"qwen",
-		"alibaba",
-		"kimi k3",
-		"moonshot",
-		"z.ai",
 		"glm",
-		"zhipu",
 		"mimo",
-		"xiaomi",
-		"minimax",
-		"clinepass",
-		"opencode go",
-		"ollama cloud",
-		"cloudflare",
-		"cloudflare ai gateway",
-		"command code",
-		"groq"
+		"copilot",
+		"byok"
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/feimacode/copilot-alternatives"
+		"url": "git+https://github.com/hAn0725/modelmeter-ai-usage.git"
 	},
 	"activationEvents": [
 		"onStartupFinished",
-		"onView:copilotAlternatives.main"
+		"onView:modelMeter.main"
 	],
 	"main": "./out/extension.js",
 	"extensionKind": [
@@ -99,513 +57,265 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "copilotAlternatives",
-					"title": "Copilot Alternatives",
-					"icon": "assets/sidebar-icon.svg"
+					"id": "modelMeter",
+					"title": "ModelMeter",
+					"icon": "resources/modelmeter-activity.svg"
 				}
 			]
 		},
 		"views": {
-			"copilotAlternatives": [
+			"modelMeter": [
 				{
-					"type": "tree",
-					"id": "copilotAlternatives.main",
-					"name": "Directory"
+					"type": "webview",
+					"id": "modelMeter.main",
+					"name": "AI 用量监控"
 				}
 			]
 		},
 		"commands": [
 			{
-				"command": "copilotAlternatives.openSidebar",
-				"title": "Open Sidebar",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.openSidebar",
+				"title": "打开侧边栏",
+				"category": "ModelMeter",
 				"icon": "$(extensions)"
 			},
 			{
-				"command": "copilotAlternatives.open",
-				"title": "Open Copilot Alternatives Directory",
-				"category": "Copilot Alternatives",
-				"icon": "$(extensions)"
-			},
-			{
-				"command": "copilotAlternatives.byok.add",
-				"title": "BYOK: Add Provider",
-				"category": "Copilot Alternatives",
-				"icon": "$(key)"
-			},
-			{
-				"command": "copilotAlternatives.byok.list",
-				"title": "BYOK: List Providers",
-				"category": "Copilot Alternatives",
-				"icon": "$(list-flat)"
-			},
-			{
-				"command": "copilotAlternatives.byok.remove",
-				"title": "BYOK: Remove Provider",
-				"category": "Copilot Alternatives",
-				"icon": "$(trash)"
-			},
-			{
-				"command": "copilotAlternatives.byok.openTemplatesFolder",
-				"title": "BYOK: Open Templates Folder",
-				"category": "Copilot Alternatives",
-				"icon": "$(folder-opened)"
-			},
-			{
-				"command": "copilotAlternatives.openUrl",
-				"title": "Open URL",
-				"icon": "$(link-external)"
-			},
-			{
-				"command": "copilotAlternatives.copyLink",
-				"title": "Copy Link",
-				"icon": "$(copy)"
-			},
-			{
-				"command": "copilotAlternatives.viewDetails",
-				"title": "View Details",
-				"icon": "$(info)"
-			},
-			{
-				"command": "copilotAlternatives.copyToClipboard",
-				"title": "Copy to Clipboard",
-				"icon": "$(copy)"
-			},
-			{
-				"command": "copilotAlternatives.copyEndpointUrl",
-				"title": "Copy Endpoint URL",
-				"icon": "$(link)"
-			},
-			{
-				"command": "copilotAlternatives.installExtension",
-				"title": "Install Extension",
-				"icon": "$(cloud-download)"
-			},
-			{
-				"command": "copilotAlternatives.byok.openJsonFile",
-				"title": "Open chatLanguageModels.json",
-				"category": "Copilot Alternatives",
-				"icon": "$(go-to-file)"
-			},
-			{
-				"command": "copilotAlternatives.byok.addProviderInline",
-				"title": "Add BYOK Provider (Single Key)",
-				"category": "Copilot Alternatives",
-				"icon": "$(plus)"
-			},
-			{
-				"command": "copilotAlternatives.byok.addMultiKeyProvider",
-				"title": "Add BYOK Provider (Multi Key)",
-				"category": "Copilot Alternatives",
-				"icon": "$(combine)"
-			},
-			{
-				"command": "copilotAlternatives.byok.editProvider",
-				"title": "Edit Provider",
-				"category": "Copilot Alternatives",
-				"icon": "$(edit)"
-			},
-			{
-				"command": "copilotAlternatives.byok.addModel",
-				"title": "Add Model",
-				"category": "Copilot Alternatives",
-				"icon": "$(plus)"
-			},
-			{
-				"command": "copilotAlternatives.byok.editModel",
-				"title": "Edit Model",
-				"category": "Copilot Alternatives",
-				"icon": "$(edit)"
-			},
-			{
-				"command": "copilotAlternatives.byok.deleteProvider",
-				"title": "Delete Provider",
-				"category": "Copilot Alternatives",
-				"icon": "$(trash)"
-			},
-			{
-				"command": "copilotAlternatives.byok.deleteModel",
-				"title": "Delete Model",
-				"category": "Copilot Alternatives",
-				"icon": "$(trash)"
-			},
-			{
-				"command": "copilotAlternatives.openReadme",
-				"title": "Open README",
-				"category": "Copilot Alternatives",
-				"icon": "$(markdown)"
-			},
-			{
-				"command": "copilotAlternatives.showTokenUsage",
-				"title": "Show Token Usage Dashboard",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.showTokenUsage",
+				"title": "打开用量总览",
+				"category": "ModelMeter",
 				"icon": "$(flame)"
 			},
 			{
-				"command": "copilotAlternatives.exportTokenUsage",
-				"title": "Export Token Usage Data",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.exportTokenUsage",
+				"title": "导出 Token 用量数据",
+				"category": "ModelMeter",
 				"icon": "$(save-as)"
 			},
 			{
-				"command": "copilotAlternatives.reloadTokenUsage",
-				"title": "Refresh Stats DB from local sessions",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.reloadTokenUsage",
+				"title": "重新构建统计数据",
+				"category": "ModelMeter",
 				"icon": "$(refresh)"
 			},
 			{
-				"command": "copilotAlternatives.debugTokenUsage",
-				"title": "Debug Token Usage (dump to logs)",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.debugTokenUsage",
+				"title": "Token 用量诊断（输出到日志）",
+				"category": "ModelMeter",
 				"icon": "$(bug)"
 			},
 			{
-				"command": "copilotAlternatives.signInGitHubForCopilotEntitlement",
-				"title": "Sign in with GitHub to Detect Copilot Plan",
-				"category": "Copilot Alternatives",
-				"icon": "$(github)"
-			},
-			{
-				"command": "copilotAlternatives.showVendorUsage",
-				"title": "Show Vendor Usage",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.showVendorUsage",
+				"title": "打开厂商用量",
+				"category": "ModelMeter",
 				"icon": "$(organization)"
 			},
 			{
-				"command": "copilotAlternatives.showModelUsage",
-				"title": "Show Model Usage",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.showModelUsage",
+				"title": "打开模型用量",
+				"category": "ModelMeter",
 				"icon": "$(symbol-class)"
 			},
 			{
-				"command": "copilotAlternatives.showModelUsageForVendor",
-				"title": "Show Model Usage for Vendor",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.showModelUsageForVendor",
+				"title": "打开指定厂商的模型用量",
+				"category": "ModelMeter",
 				"icon": "$(symbol-class)"
 			},
 			{
-				"command": "copilotAlternatives.openUsageOverview",
-				"title": "Show Overview Usage",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.openUsageOverview",
+				"title": "打开用量总览",
+				"category": "ModelMeter",
 				"icon": "$(graph)"
 			},
 			{
-				"command": "copilotAlternatives.openUsageVendor",
-				"title": "Show Vendor Usage",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.openUsageVendor",
+				"title": "打开厂商用量",
+				"category": "ModelMeter",
 				"icon": "$(graph)"
 			},
 			{
-				"command": "copilotAlternatives.openUsageModel",
-				"title": "Show Model Usage",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.openUsageModel",
+				"title": "打开模型用量",
+				"category": "ModelMeter",
 				"icon": "$(graph)"
 			},
 			{
-				"command": "copilotAlternatives.showSessionDetail",
-				"title": "Show Session Details",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.showSessionDetail",
+				"title": "打开会话详情",
+				"category": "ModelMeter",
 				"icon": "$(comment-discussion)"
 			},
 			{
-				"command": "copilotAlternatives.toggleSessionFilter",
-				"title": "Toggle Session Filter",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.toggleSessionFilter",
+				"title": "切换会话筛选",
+				"category": "ModelMeter",
 				"icon": "$(filter)"
 			},
 			{
-				"command": "copilotAlternatives.clearSessionFilter",
-				"title": "Clear Session Filter",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.clearSessionFilter",
+				"title": "清除会话筛选",
+				"category": "ModelMeter",
 				"icon": "$(clear-all)"
 			},
 			{
-				"command": "copilotAlternatives.copySessionId",
-				"title": "Copy Session ID",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.copySessionId",
+				"title": "复制会话 ID",
+				"category": "ModelMeter",
 				"icon": "$(copy)"
 			},
 			{
-				"command": "copilotAlternatives.openHelpDoc",
-				"title": "Open Help Document",
-				"category": "Copilot Alternatives",
+				"command": "modelMeter.openHelpDoc",
+				"title": "打开帮助文档",
+				"category": "ModelMeter",
 				"icon": "$(question)"
 			}
 		],
 		"menus": {
 			"commandPalette": [
 				{
-					"command": "copilotAlternatives.openSidebar",
+					"command": "modelMeter.openSidebar",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.open",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.add",
+					"command": "modelMeter.showTokenUsage",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.byok.list",
+					"command": "modelMeter.exportTokenUsage",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.byok.remove",
+					"command": "modelMeter.reloadTokenUsage",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.byok.openTemplatesFolder",
+					"command": "modelMeter.debugTokenUsage",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.openUrl",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.copyLink",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.viewDetails",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.copyToClipboard",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.copyEndpointUrl",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.installExtension",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.openJsonFile",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.addProviderInline",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.addMultiKeyProvider",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.editProvider",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.addModel",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.editModel",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.deleteProvider",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.byok.deleteModel",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.openReadme",
-					"when": "false"
-				},
-				{
-					"command": "copilotAlternatives.showTokenUsage",
+					"command": "modelMeter.showVendorUsage",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.exportTokenUsage",
+					"command": "modelMeter.showModelUsage",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.showVendorUsage",
+					"command": "modelMeter.showModelUsageForVendor",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.showModelUsage",
+					"command": "modelMeter.openUsageOverview",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.toggleSessionFilter",
+					"command": "modelMeter.openUsageVendor",
 					"when": "true"
 				},
 				{
-					"command": "copilotAlternatives.openHelpDoc",
+					"command": "modelMeter.openUsageModel",
 					"when": "true"
-				}
-			],
-			"view/title": [
-				{
-					"command": "copilotAlternatives.byok.addProviderInline",
-					"when": "view == copilotAlternatives.main",
-					"group": "navigation"
 				},
 				{
-					"command": "copilotAlternatives.byok.openJsonFile",
-					"when": "view == copilotAlternatives.main",
-					"group": "navigation"
+					"command": "modelMeter.showSessionDetail",
+					"when": "true"
+				},
+				{
+					"command": "modelMeter.toggleSessionFilter",
+					"when": "true"
+				},
+				{
+					"command": "modelMeter.clearSessionFilter",
+					"when": "true"
+				},
+				{
+					"command": "modelMeter.copySessionId",
+					"when": "true"
+				},
+				{
+					"command": "modelMeter.openHelpDoc",
+					"when": "true"
 				}
 			],
 			"view/item/context": [
 				{
-					"command": "copilotAlternatives.byok.addProviderInline",
-					"when": "view == copilotAlternatives.main && viewItem == byokSection",
+					"command": "modelMeter.openUsageOverview",
+					"when": "view == modelMeter.main && viewItem == usageSection",
 					"group": "inline"
 				},
 				{
-					"command": "copilotAlternatives.byok.addMultiKeyProvider",
-					"when": "view == copilotAlternatives.main && viewItem == byokSection",
+					"command": "modelMeter.openUsageVendor",
+					"when": "view == modelMeter.main && viewItem == usageVendor",
 					"group": "inline"
 				},
 				{
-					"command": "copilotAlternatives.byok.openJsonFile",
-					"when": "view == copilotAlternatives.main && viewItem == byokSection",
+					"command": "modelMeter.openUsageModel",
+					"when": "view == modelMeter.main && viewItem == usageModel",
 					"group": "inline"
 				},
 				{
-					"command": "copilotAlternatives.openUrl",
-					"when": "view == copilotAlternatives.main && viewItem == catalogItem",
+					"command": "modelMeter.toggleSessionFilter",
+					"when": "view == modelMeter.main && viewItem == sessionSection",
 					"group": "inline"
 				},
 				{
-					"command": "copilotAlternatives.viewDetails",
-					"when": "view == copilotAlternatives.main && viewItem == catalogItem",
+					"command": "modelMeter.clearSessionFilter",
+					"when": "view == modelMeter.main && viewItem == sessionSection",
 					"group": "inline"
 				},
 				{
-					"command": "copilotAlternatives.copyLink",
-					"when": "view == copilotAlternatives.main && viewItem == catalogItem"
-				},
-				{
-					"command": "copilotAlternatives.byok.editProvider",
-					"when": "view == copilotAlternatives.main && viewItem == byokProvider",
+					"command": "modelMeter.showSessionDetail",
+					"when": "view == modelMeter.main && viewItem == sessionNode",
 					"group": "inline"
 				},
 				{
-					"command": "copilotAlternatives.byok.addModel",
-					"when": "view == copilotAlternatives.main && viewItem == byokProvider",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.byok.deleteProvider",
-					"when": "view == copilotAlternatives.main && viewItem == byokProvider",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.byok.openJsonFile",
-					"when": "view == copilotAlternatives.main && viewItem == byokProvider",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.byok.remove",
-					"when": "view == copilotAlternatives.main && viewItem == byokProvider"
-				},
-				{
-					"command": "copilotAlternatives.byok.editModel",
-					"when": "view == copilotAlternatives.main && viewItem == byokModel",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.byok.deleteModel",
-					"when": "view == copilotAlternatives.main && viewItem == byokModel",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.copyEndpointUrl",
-					"when": "view == copilotAlternatives.main && viewItem == byokModel"
-				},
-				{
-					"command": "copilotAlternatives.installExtension",
-					"when": "view == copilotAlternatives.main && viewItem == extensionItem",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.openUrl",
-					"when": "view == copilotAlternatives.main && viewItem == extensionItem"
-				},
-				{
-					"command": "copilotAlternatives.viewDetails",
-					"when": "view == copilotAlternatives.main && viewItem == extensionItem"
-				},
-				{
-					"command": "copilotAlternatives.openReadme",
-					"when": "view == copilotAlternatives.main && viewItem == moreInfoSection",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.openUsageOverview",
-					"when": "view == copilotAlternatives.main && viewItem == usageSection",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.openUsageVendor",
-					"when": "view == copilotAlternatives.main && viewItem == usageVendor",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.openUsageModel",
-					"when": "view == copilotAlternatives.main && viewItem == usageModel",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.toggleSessionFilter",
-					"when": "view == copilotAlternatives.main && viewItem == sessionSection",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.clearSessionFilter",
-					"when": "view == copilotAlternatives.main && viewItem == sessionSection",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.showSessionDetail",
-					"when": "view == copilotAlternatives.main && viewItem == sessionNode",
-					"group": "inline"
-				},
-				{
-					"command": "copilotAlternatives.copySessionId",
-					"when": "view == copilotAlternatives.main && viewItem == sessionNode",
+					"command": "modelMeter.copySessionId",
+					"when": "view == modelMeter.main && viewItem == sessionNode",
 					"group": "1_edit"
 				},
 				{
-					"command": "copilotAlternatives.openHelpDoc",
-					"when": "view == copilotAlternatives.main && viewItem == helpItem",
+					"command": "modelMeter.openHelpDoc",
+					"when": "view == modelMeter.main && viewItem == helpItem",
 					"group": "inline"
 				}
 			]
-		}
-	},
-	"configuration": {
-		"title": "Copilot Alternatives — Token Usage",
-		"properties": {
-			"copilotAlternatives.tokenUsage.backfillDays": {
-				"type": "number",
-				"default": 60,
-				"minimum": 1,
-				"maximum": 365,
-				"description": "Number of days of chat history to import from disk. Older sessions are skipped for performance. Increase this value then reload token usage data to include older sessions."
-			},
-			"copilotAlternatives.tokenUsage.watcherWindowDays": {
-				"type": "number",
-				"default": 1,
-				"minimum": 1,
-				"maximum": 30,
-				"description": "How far back (in days) the real-time file watcher scans for chat session files on startup. Keep small (default 1 day) for fast activation. Historical data is still imported by the background processor."
-			},
-			"copilotAlternatives.tokenUsage.yearlyBudgetTarget": {
-				"type": "number",
-				"default": 250000,
-				"minimum": 1,
-				"description": "Yearly AI token budget target in USD. Displayed as a progress bar in the token usage overview dashboard."
+		},
+		"configuration": {
+			"title": "ModelMeter — AI 用量监控",
+			"properties": {
+				"modelMeter.tokenUsage.backfillDays": {
+					"type": "number",
+					"default": 60,
+					"minimum": 1,
+					"maximum": 365,
+					"description": "历史数据回溯天数。从磁盘导入的聊天历史天数，更早的会话会被跳过以提升性能。增大此值后重新加载数据，即可包含更早的会话。"
+				},
+				"modelMeter.tokenUsage.watcherWindowDays": {
+					"type": "number",
+					"default": 1,
+					"minimum": 1,
+					"maximum": 30,
+					"description": "实时监听回溯天数。启动时实时文件监听器扫描聊天会话文件的天数范围。保持较小（默认 1 天）可加快激活速度；历史数据仍会由后台处理器导入。"
+				},
+				"modelMeter.tokenUsage.usdToCnyRate": {
+					"type": "number",
+					"default": 7.2,
+					"minimum": 0.01,
+					"description": "美元兑人民币换算汇率。用于将底层美元价格估算换算为人民币显示（¥）。内置数据保留官方美元价格；该汇率仅用于显示换算，不会自动联网获取汇率。"
+				},
+				"modelMeter.logLevel": {
+					"type": "string",
+					"enum": [
+						"normal",
+						"debug"
+					],
+					"enumItemLabels": [
+						"普通（默认，仅摘要与警告）",
+						"调试（详细日志）"
+					],
+					"default": "normal",
+					"description": "日志级别。normal：输出启动/同步摘要与警告、错误；debug：额外输出存储根目录、变更文件、解析耗时、vendor/pricing 解析等详细日志。也可随时运行“Token 用量诊断”命令一次性输出完整诊断详情。"
+				}
 			}
 		}
 	},
@@ -621,6 +331,7 @@
 		"package:mac-arm": "vsce package --readme-path EXTENSION_README.md --target darwin-arm64 --allow-star-activation"
 	},
 	"devDependencies": {
+		"@resvg/resvg-js": "^2.6.2",
 		"@types/node": "^22.0.0",
 		"@types/sqlite3": "^3.1.11",
 		"@types/vscode": "^1.85.0",

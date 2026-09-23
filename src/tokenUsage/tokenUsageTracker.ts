@@ -6,12 +6,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ChatSessionStoreWatcher, ChatSessionStoreEvent } from './chatSessionStoreWatcher';
-import { CliSessionWatcher } from './cliSessionWatcher';
 import { TokenUsageStorage, TokenSource, TrackedUsageEvent } from './tokenUsageStorage';
 import { MetricsService } from './metricsService';
-import { estimateCost, resolveModelPricingKey } from './tokenCostEstimator';
+import { estimateTurnCost, toCny } from './tokenCostEstimator';
 import { ILogService } from '../platform/log/common/logService';
-import { CopilotEntitlement, resolveEntitlement } from './copilotEntitlement';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -29,7 +27,6 @@ export class TokenUsageTracker implements vscode.Disposable {
 	private readonly _storage: TokenUsageStorage;
 	private readonly _metricsService: MetricsService;
 	private readonly _chatSessionWatcher: ChatSessionStoreWatcher;
-	private readonly _cliSessionWatcher: CliSessionWatcher;
 	private readonly _log: ILogService;
 
 	// Live session counters (status bar)
@@ -43,27 +40,15 @@ export class TokenUsageTracker implements vscode.Disposable {
 	private readonly _onDidChangeStored: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
 	readonly onDidChangeStored: vscode.Event<void> = this._onDidChangeStored.event;
 
-	private readonly _onDidChangeEntitlement: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
-	readonly onDidChangeEntitlement: vscode.Event<void> = this._onDidChangeEntitlement.event;
-
-	private _context: vscode.ExtensionContext | undefined;
-	private _copilotEntitlement: CopilotEntitlement | undefined;
-	private _vendorFlags: { copilotDetected: boolean; allCopilot: boolean } = { copilotDetected: false, allCopilot: false };
-
 	constructor(globalState: vscode.Memento, globalStoragePath: string, logService: ILogService) {
 		this._log = logService;
-		const dbPath = path.join(globalStoragePath, 'copilot-alternatives-metrics.db');
+		const dbPath = path.join(globalStoragePath, 'modelmeter-metrics.db');
 		this._metricsService = new MetricsService(dbPath, logService.createSubLogger('Metrics'));
 		this._storage = new TokenUsageStorage(globalState);
 		this._chatSessionWatcher = new ChatSessionStoreWatcher(logService.createSubLogger('ChatStore'));
-		this._cliSessionWatcher = new CliSessionWatcher(logService.createSubLogger('CliStore'));
 	}
 
 	activate(context: vscode.ExtensionContext): void {
-		this._context = context;
-
-		this.registerGitHubSessionListener();
-
 		// Purge stale globalState keys from retired tier-2/3 watchers
 		void context.globalState.update('tw.logIds', undefined);
 		void context.globalState.update('tw.logPositions', undefined);
@@ -71,37 +56,29 @@ export class TokenUsageTracker implements vscode.Disposable {
 		void context.globalState.update('tw.sessionPositions', undefined);
 
 		// ── Activation order ─────────────────────────
-		// 1. Quick import (deferred, non-blocking) — gets recent data into DB
-		setImmediate(() => { void this._metricsService.quickImport()
-			.then(() => this._refreshVendorFlags())
-			.then(() => this._notifyImportComplete())
-			.catch(err => this._log.warn(`Quick import failed: ${err instanceof Error ? err.message : String(err)}`))
-		; });
-		// 2. Background catch-up (async, non-blocking) — full historical data
-		this._metricsService.backgroundImport()
-			.then(() => this._refreshVendorFlags())
-			.then(() => this._notifyImportComplete())
-			.catch(err => this._log.warn(`Background import failed: ${err instanceof Error ? err.message : String(err)}`));
+		// The synchronous activation path stays minimal: register everything, then
+		// let the UI render from the existing SQLite cache. Historical imports are
+		// deferred and serialized: quick pass (recent files only) → full catch-up.
+		// Both passes are changed-only (size + importer_version) and yield to the
+		// event loop, so a normal Reload parses nothing when no session changed.
+		setTimeout(() => { void this._runBackgroundSync(); }, 700);
 
-		// 3. File watcher for real-time updates
+		// File watcher for real-time updates — starts immediately and imports new
+		// events independently of the background sync above.
 		this._chatSessionWatcher.setMetricsService(this._metricsService);
 		this._chatSessionWatcher.activate(context);
 		this._chatSessionWatcher.onEvent(event => this._onChatSessionStoreEvent(event));
-
-		this._cliSessionWatcher.setMetricsService(this._metricsService);
-		this._cliSessionWatcher.activate(context);
 	}
 
-	/** Recomputes cached vendor-usage flags and, if Copilot usage is newly detected, attempts silent entitlement resolution. */
-	private async _refreshVendorFlags(): Promise<void> {
+	/** Serialized background sync: quick pass, then full changed-only catch-up. */
+	private async _runBackgroundSync(): Promise<void> {
 		try {
-			const wasDetected = this._vendorFlags.copilotDetected;
-			this._vendorFlags = await this._metricsService.getVendorUsageFlags();
-			if (this._vendorFlags.copilotDetected && !wasDetected) {
-				void this._resolveEntitlementSilently();
-			}
+			const quick = await this._metricsService.quickImport();
+			if (quick.imported > 0) { this._notifyImportComplete(); }
+			const background = await this._metricsService.backgroundImport();
+			if (background.imported > 0) { this._notifyImportComplete(); }
 		} catch (err) {
-			this._log.debug(`Vendor flags refresh failed: ${err instanceof Error ? err.message : String(err)}`);
+			this._log.warn(`Background sync failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
@@ -111,34 +88,6 @@ export class TokenUsageTracker implements vscode.Disposable {
 		this._onDidChangeStored.fire();
 	}
 
-	registerGitHubSessionListener(): void {
-		if ((this as any)._sessionChangeListener) { return; }
-		(this as any)._sessionChangeListener = vscode.authentication.onDidChangeSessions(event => {
-			if (event.provider.id !== 'github') { return; }
-			void this._resolveEntitlementSilently(true);
-		});
-	}
-
-	private async _resolveEntitlementSilently(forceRefresh = false): Promise<void> {
-		if (!this._context) { return; }
-		const entitlement = await resolveEntitlement(this._context, this._log, { interactive: false, forceRefresh });
-		if (entitlement) {
-			this._copilotEntitlement = entitlement;
-			this._onDidChangeEntitlement.fire();
-		}
-	}
-
-	/** Interactively prompts GitHub sign-in (with popup) to (re)resolve Copilot entitlement. For use from an explicit command only. */
-	async signInForCopilotEntitlement(): Promise<CopilotEntitlement | undefined> {
-		if (!this._context) { return undefined; }
-		const entitlement = await resolveEntitlement(this._context, this._log, { interactive: true, forceRefresh: true });
-		if (entitlement) {
-			this._copilotEntitlement = entitlement;
-			this._onDidChangeEntitlement.fire();
-		}
-		return entitlement;
-	}
-
 	// ── Public API ──────────────────────────────────────────────────────────
 
 	get sessionTokens(): number { return this._sessionTokens; }
@@ -146,9 +95,6 @@ export class TokenUsageTracker implements vscode.Disposable {
 	/** @deprecated Use metricsService instead for DB-backed queries */
 	get storage(): TokenUsageStorage { return this._storage; }
 	get metricsService(): MetricsService { return this._metricsService; }
-	get copilotEntitlement(): CopilotEntitlement | undefined { return this._copilotEntitlement; }
-	/** Cached vendor-usage flags, recomputed after each import pass (not on every call). */
-	get vendorUsageFlags(): { copilotDetected: boolean; allCopilot: boolean } { return this._vendorFlags; }
 
 	/**
 	 * Force-reload all existing data from disk. Resets all seen-event tracking
@@ -164,9 +110,6 @@ export class TokenUsageTracker implements vscode.Disposable {
 		this._sessionCost = 0;
 
 		this._chatSessionWatcher.reloadAll();
-		this._cliSessionWatcher.reloadAll();
-
-		await this._refreshVendorFlags();
 
 		this._log.info('ReloadAll: complete');
 		this._onDidUpdate.fire();
@@ -182,7 +125,6 @@ export class TokenUsageTracker implements vscode.Disposable {
 	 */
 	private _onChatSessionStoreEvent(event: ChatSessionStoreEvent): void {
 		const isLive = (Date.now() - event.timestamp) < LIVE_WINDOW_MS;
-		const pricingKey = resolveModelPricingKey(event.model);
 
 		this._log.trace(
 			`ChatStore event: model=${event.model} vendor=${event.vendor} ` +
@@ -193,7 +135,7 @@ export class TokenUsageTracker implements vscode.Disposable {
 		const tracked: TrackedUsageEvent = {
 			timestamp: event.timestamp,
 			vendor: event.vendor,       // exact from metadata — no heuristic!
-			modelId: pricingKey,
+			modelId: event.model,
 			modelName: event.modelName,  // display name from metadata
 			isBYOK: event.isBYOK,        // exact from metadata
 			source: TokenSource.ApiReported,
@@ -203,12 +145,15 @@ export class TokenUsageTracker implements vscode.Disposable {
 			elapsedMs: event.elapsedMs,
 		};
 
-		const costUsd = estimateCost(event.promptTokens, event.completionTokens, 0, pricingKey).totalCost;
-		this._storage.recordUsage(tracked, costUsd);
+		const costEstimate = estimateTurnCost(event.promptTokens, event.completionTokens, 0, event.model, event.timestamp);
+		// 会话级实时计数采用人民币口径：CNY 规则直接累加，USD 规则按当前汇率折算一次。
+		const costCny = costEstimate
+			? (costEstimate.currency === 'CNY' ? costEstimate.total : toCny(costEstimate.total))
+			: 0;
 
 		if (isLive) {
 			this._sessionTokens += event.promptTokens + event.completionTokens;
-			this._sessionCost += costUsd;
+			this._sessionCost += costCny;
 		}
 
 		this._onDidUpdate.fire();
@@ -216,9 +161,7 @@ export class TokenUsageTracker implements vscode.Disposable {
 	}
 
 	dispose(): void {
-		(this as any)._sessionChangeListener?.dispose();
 		this._chatSessionWatcher.dispose();
-		this._cliSessionWatcher.dispose();
 		this._onDidUpdate.dispose();
 		this._onDidChangeStored.dispose();
 	}

@@ -1,112 +1,113 @@
-# Cost Estimates
+# 费用估算
 
-The extension estimates the cost of each chat interaction from token usage and bundled pricing tables. The values are best used for trends and comparisons rather than as a billing statement.
+扩展根据 Token 用量与内置价格表估算每轮对话的费用。预估费用按**中国大陆官方 API 标准按量原价**计算，不考虑套餐、免费额度、TokenPlan、优惠或第三方渠道价格；这些数值适合观察趋势与横向比较，而非作为账单依据。
 
-![Usage dashboard with cost trend](https://raw.githubusercontent.com/feimacode/copilot-alternatives/master/assets/screenshots/usage-dashboard.png)
+![费用趋势](https://raw.githubusercontent.com/hAn0725/modelmeter-ai-usage/main/assets/screenshots/usage-dashboard.png)
 
-*The overview dashboard shows daily cost movement, vendor share, and budget projection so you can spot expensive models or days quickly.*
+*总览仪表盘展示每日费用走势、厂商分布，便于快速发现高开销模型或日期。*
 
 ---
 
-## How Estimates Are Calculated
+## 费用如何计算
 
-For each chat turn, the extension records the number of **input tokens** and **output tokens** from VS Code’s session store and applies the bundled per-token price:
+每一轮对话，扩展从 VS Code 会话存储中读取**输入 Token**、**输出 Token**与**发生时间**，按该时间适用的价格规则逐轮计算，再整体聚合：
 
 ```
-estimated_cost = (input_tokens × input_price_per_token)
-               + (output_tokens × output_price_per_token)
+单轮预估费用 = 输入 Token × 输入单价 + 输出 Token × 输出单价
 ```
 
-### Pricing Sources
+### 价格来源
 
-The extension includes static pricing tables for popular providers and models:
+扩展内置常见服务商与模型的价格表（`data/pricing.json`），随扩展版本更新，**不会联网实时获取**。价格优先采用**中国大陆官方 API 人民币原价**（如 DeepSeek、Qwen 百炼、智谱 BigModel、小米 MiMo 开放平台）；仅提供官方美元价的服务商按设置汇率折算一次。
 
-| Provider | Models Covered |
-|---|---|
-| OpenAI | GPT-4o, GPT-4o-mini, o1, o3, GPT-4 series |
-| Anthropic | Claude Opus, Sonnet, Haiku series |
-| Google | Gemini Pro, Flash series |
-| DeepSeek | V4, Flash, R1 |
-| Mistral | Large, Codestral |
-| Others | vendor-level average as fallback |
+部分价格条目带有**生效日期**（如 MiMo 自 2026-09-22 起执行的价格）：仅当请求发生时间不早于生效日期时才按该价格估算，更早的请求显示“暂无价格”，避免用新价格回溯旧数据。
 
-These prices are updated with each extension release and are not fetched live from provider APIs.
+### Xiaomi MiMo（开放平台）官方原价
 
----
+| 模型 | 缓存命中（¥/百万 Token） | 输入·未命中（¥/百万 Token） | 输出（¥/百万 Token） |
+|---|---|---|---|
+| MiMo V2.6 Flash | 0.02 | 1.00 | 2.00 |
+| MiMo V2.6 Pro | 0.025 | 3.00 | 6.00 |
+| MiMo V2.6 Pro UltraSpeed | 0.25 | 30.00 | 60.00 |
 
-## GitHub Copilot: Credits, not dollars
+- 价格来源：小米 MiMo 开放平台“按量付费”官方页面，**2026-09-22** 起生效
+- **批量推理半价未采用**：估算按标准按量原价计算
+- **联网搜索服务**（¥16 / 1000 次）为独立计费项，**不计入** Token 费用估算
+- 价格表同时记录了缓存命中价；由于 VS Code 会话数据通常不提供可靠的缓存命中 Token，实际估算一般按**未命中**价计算输入费用
 
-GitHub Copilot plans are billed in **AI credits**, not a per-token dollar rate. The extension handles this differently from BYOK/API providers:
+### DeepSeek 动态计价
 
-- when a turn reports a real GitHub-provided credit count, it stores that number directly
-- if a real figure is missing, it falls back to an estimate derived from tokens and model-aware heuristics
-- any Copilot usage shown in the UI is displayed as **credits (cr)** rather than a dollar estimate
+DeepSeek 官方实行峰谷计价，扩展按请求发生时间逐轮判定：
 
-![Copilot credits view](https://raw.githubusercontent.com/feimacode/copilot-alternatives/master/assets/screenshots/copilot-credits.png)
+- **高峰时段**：北京时间周一至周五（不含中国法定节假日）9:00–12:00、14:00–18:00
+- **空闲时段**：其余所有时段，**包括周末与中国法定节假日全天**（调休补班的周六/周日仍按周末处理）
+- **历史价格**：按官方各阶段生效日期计价；旧模型名 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp` 在 2026-09-10 12:00（北京时间）后已由官方路由到 V4.1 Flash，按 Flash 价格计算
 
-*The Copilot credits panel is the easiest way to see how your current cycle compares to your monthly allowance.*
+### 无价格数据的模型
 
----
+如果某个模型没有价格条目：
 
-## Model Matching
-
-The extension tries to match each model ID to a pricing entry in layers:
-
-1. **vendor prefix** — for IDs like `openai/gpt-4o`
-2. **heuristic matching** — by model name and family
-3. **vendor-level fallback** — if the exact model is unknown
-4. **unknown fallback** — if the provider cannot be determined reliably
-
-If you want to verify how a model was resolved, check the **Copilot Alternatives** output channel in the VS Code Output panel.
+- **Token 与请求次数照常统计**
+- 费用显示为 **暂无价格**（不会套用其它模型的价格）
+- 若某厂商下的所有请求均无定价，该厂商费用显示为“暂无价格”
 
 ---
 
-## Accuracy and Caveats
+## 币种说明
 
-### Included in the estimate
-
-- input token cost
-- output token cost
-
-### Not included
-
-- cached-input discounts
-- volume or enterprise discounts
-- free quota that is already included in a plan
-- promotional credits or special negotiated rates
-- taxes or fees
-
-### Interpretation
-
-| Scenario | Accuracy |
-|---|---|
-| standard pay-as-you-go API pricing | good |
-| subscription plans with included quota | may overestimate |
-| enterprise agreements | may overestimate |
-| cached prompt tokens | may overestimate |
-
-**Estimates are approximate.** Use them to understand trends and compare providers, not as a billing statement.
+- **人民币定价**的模型（中国大陆官方原价）直接按人民币计算与显示，**不受汇率设置影响**
+- **美元定价**的模型在显示时按设置项 `美元兑人民币换算汇率`（默认 7.2）折算一次
+- 不存在“人民币 → 美元 → 人民币”的往返换算
 
 ---
 
-## FAQ
+## 模型匹配
 
-### Why does my cost show $0.00?
-This is normal for GitHub Copilot usage. Copilot is displayed in **AI credits (cr)** rather than dollars.
+扩展尝试逐层将模型 ID 匹配到价格条目：
 
-### Why is the estimate higher than my bill?
-The estimate assumes a standard pay-as-you-go quote. If your provider includes free quota or a special plan, your actual bill may be lower.
+1. **厂商前缀** — 如 `openai/gpt-4o`
+2. **启发式匹配** — 按模型名与系列
+3. **无匹配** — 视为暂无价格（不再回退到无关模型价格）
 
-### Why don’t my Copilot credits match GitHub’s page?
-Small differences are expected because the extension uses local session data, rolling windows, and estimate fallbacks where GitHub reported credits are missing.
-
-### Can I add custom pricing?
-Not yet. Custom pricing would require editing the bundled pricing tables.
+如需确认某个模型是如何解析的，可运行 `Token 用量诊断` 查看输出面板。
 
 ---
 
-## See Also
+## 准确度与注意事项
 
-- [Token Usage Tracking](HELP_TOKEN_USAGE.md) — Dashboards, status bar, and Copilot credit tracking in depth
-- [Session Analytics](HELP_SESSION_ANALYTICS.md) — Browsing and filtering your chat session history
-- [Getting Started](HELP_GETTING_STARTED.md) — Installation, sidebar overview, and first steps
+### 包含在估算内
+
+- 输入 Token 费用
+- 输出 Token 费用
+
+### 不包含
+
+- 缓存输入折扣 —— VS Code 会话记录未提供可靠的缓存命中 Token 时，输入费用一律按官方**缓存未命中**价格估算（不假设任何缓存命中比例）
+- 批量（Batch）折扣、套餐 / TokenPlan / 免费额度 / 优惠券 / 第三方渠道价格
+- 税费
+
+**估算仅供参考。** 请用于了解趋势与比较服务商，不要作为账单依据。
+
+---
+
+## 常见问题
+
+### 为什么费用显示“暂无价格”？
+
+说明该模型在本地价格表中没有条目。Token 与请求次数仍会正常统计；可在后续版本补充价格数据。
+
+### 为什么估算比实际账单高？
+
+估算按标准按量计费价格计算。如果服务商提供了免费额度或套餐，实际账单可能更低。
+
+### 可以自定义价格吗？
+
+目前需要修改内置价格表文件。
+
+---
+
+## 参见
+
+- [Token 用量统计](HELP_TOKEN_USAGE.md) — 仪表盘、状态栏与会话分析
+- [会话分析](HELP_SESSION_ANALYTICS.md) — 浏览与筛选历史会话
+- [快速开始](HELP_GETTING_STARTED.md) — 安装、侧边栏与第一步操作

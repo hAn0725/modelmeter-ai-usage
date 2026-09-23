@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+	<!-- Meter arc (model + meter) -->
+	<path d="M4.5 12.5a7.5 7.5 0 0 1 15 0"/>
+	<!-- Needle pointing at the “usage” side -->
+	<path d="M12 12.5l4.4-4.4"/>
+	<circle cx="12" cy="12.5" r="1.1" fill="currentColor" stroke="none"/>
+	<!-- Rising usage bars (analytics) -->
+	<rect x="6.6" y="16.9" width="2.6" height="3.4" rx="1.3" fill="currentColor" stroke="none"/>
+	<rect x="10.7" y="15.1" width="2.6" height="5.2" rx="1.3" fill="currentColor" stroke="none"/>
+	<rect x="14.8" y="13.3" width="2.6" height="7" rx="1.3" fill="currentColor" stroke="none"/>
+</svg>

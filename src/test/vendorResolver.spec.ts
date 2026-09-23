@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 // No vscode mock needed — vendorResolver is pure logic with no VS Code dependencies
 import { resolveVendor } from '../tokenUsage/vendorResolver';
+import { formatVendorName, canonicalModelName } from '../tokenUsage/vendorDisplay';
 
 describe('vendorResolver', () => {
 	// ── Prefix from model ID ──────────────────────────────────────────
@@ -40,6 +41,37 @@ describe('vendorResolver', () => {
 	it('returns unknown for unrecognized models', () => {
 		expect(resolveVendor('some-unknown-model')).toBe('unknown');
 		expect(resolveVendor('')).toBe('unknown');
+	});
+
+	// ── Xiaomi MiMo (real BYOK provider: vendor "mimo") ────────────────
+
+	it('resolves the Xiaomi MiMo vendor from prefix or heuristic', () => {
+		// Real identifiers observed in chatSessions (vendor `mimo`, extension sdmapvstool.xiaomimimo-for-copilot)
+		expect(resolveVendor('mimo/mimo-v2.6-flash')).toBe('mimo');
+		expect(resolveVendor('mimo/mimo-v2.6-pro')).toBe('mimo');
+		expect(resolveVendor('mimo/mimo-v2.6-pro-ultraspeed')).toBe('mimo');
+		// Heuristic fallback for unprefixed names
+		expect(resolveVendor('mimo-v2.6-flash')).toBe('mimo');
+		expect(resolveVendor('xiaomi-mimo-v2.6-pro')).toBe('mimo');
+	});
+
+	it('formats vendor display names consistently (raw vendor ids in DB, pretty in UI)', () => {
+		expect(formatVendorName('mimo')).toBe('MiMo');
+		expect(formatVendorName('xiaomi')).toBe('MiMo');
+		expect(formatVendorName('deepseek')).toBe('DeepSeek');
+		expect(formatVendorName('glm')).toBe('GLM');
+		expect(formatVendorName('Qwen')).toBe('Qwen');
+		// customendpoint provider names pass through unchanged
+		expect(formatVendorName('Nova')).toBe('Nova');
+		expect(formatVendorName('RedNotes Dots AI')).toBe('RedNotes Dots AI');
+		expect(formatVendorName(null)).toBe('未知');
+	});
+
+	it('canonical model names keep the real official id without the vendor prefix', () => {
+		expect(canonicalModelName('mimo/mimo-v2.6-flash')).toBe('mimo-v2.6-flash');
+		expect(canonicalModelName('customendpoint/Nova/glm-5.2')).toBe('glm-5.2');
+		expect(canonicalModelName('deepseek-flash')).toBe('deepseek-flash');
+		expect(canonicalModelName(null)).toBe('未知');
 	});
 
 	// ── Prefix takes priority over heuristic ─────────────────────────

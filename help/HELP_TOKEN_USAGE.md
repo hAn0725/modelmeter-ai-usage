@@ -1,115 +1,88 @@
-# Token Usage Tracking
+# Token 用量统计
 
-The extension automatically tracks token consumption and estimated costs across your AI chat activity — GitHub Copilot, BYOK providers, and built-in models — by reading VS Code’s chat session store.
+扩展通过读取 VS Code 的聊天会话存储，自动统计 GitHub Copilot 与第三方 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等）的 Token 消耗与**预估费用**。
 
-![Usage dashboard overview](https://raw.githubusercontent.com/feimacode/copilot-alternatives/master/assets/screenshots/usage-dashboard.png)
+![用量总览](https://raw.githubusercontent.com/hAn0725/modelmeter-ai-usage/main/assets/screenshots/usage-dashboard.png)
 
-*The main dashboard gives you a high-level view of today’s activity, recent trends, and vendor balance.*
-
-For GitHub Copilot usage specifically, the extension also tracks **AI credits** — see [Copilot Credit Tracking](#copilot-credit-tracking) below.
+*主仪表盘提供今日活动、近期趋势与厂商分布的全局视图。*
 
 ---
 
-## Overview Dashboard
+## 统计范围
 
-Open the main dashboard with `Copilot Alternatives: Show Token Usage Dashboard`.
-
-You’ll see:
-
-- **Today’s stats** — tokens used and the estimated cost so far today
-- **Rolling windows** — 7-day and 30-day views with an easy date-range switcher
-- **Vendor breakdown** — a donut chart showing token share by vendor
-- **Model breakdown** — a detailed table of tokens and cost by model
-- **Budget outlook** — a yearly budget projection against your configured target
-
-The dashboard also supports a **Since…** view so you can focus on a custom date range.
+- **数据来源**：VS Code 聊天会话存储中的会话文件（工作区会话与空窗口会话），逐轮读取输入 Token、输出 Token 与发生时间。
+- **自动导入**：启动约 0.7 秒后在后台同步；实时监听会在新会话出现时自动导入（无需手动刷新）。已导入且未变化的会话文件不会被重复解析。
+- **不计入的请求**：VS Code 的 utility 流程（聊天标题生成、意图检测、进度消息等由 `chat.utilityModel` / `chat.utilitySmallModel` 驱动的调用）不会写入聊天会话存储（经真实环境实验验证），因此这些调用的 Token 不计入本扩展统计；同理，不产生会话记录的调用（如内联补全）也无法统计。
 
 ---
 
-## Status Bar
+## 用量总览
 
-The small flame icon in the status bar shows **today’s** token count and cost. It updates in real time as session data arrives.
+运行 `打开用量总览` 打开主仪表盘，包含：
 
-Hover over it to see:
+- **今日数据** — 今日 Token 用量与预估费用
+- **区间切换** — 最近 7 天 / 最近 30 天 / 自选日期
+- **用量趋势** — 输入 / 输出 Token 与费用随时间变化
+- **厂商用量分布** — 按厂商的 Token 占比（甜甜圈图 + 表格）
+- **各厂商每日预估费用** — 按厂商堆叠的每日费用
+- **厂商 / 模型用量** — 各模型 Token 用量（按厂商着色）
+- **AI 环境影响估算** — 根据 Token 用量估算的能耗与 CO₂（启发式，仅供参考）
 
-- **24 hours** — today’s token total and estimate
-- **A week** — the last 7 days
-- **A month** — the last 30 days
-
-If Copilot usage is detected, the tooltip also shows a **Copilot credits** breakdown across those same windows.
-
-Click the status bar item to open the full usage dashboard.
-
----
-
-## Copilot Credit Tracking
-
-GitHub Copilot plans are billed in **AI credits**, not raw tokens or dollars. Whenever VS Code reports a real GitHub-provided credit count, the extension stores and displays it directly. If a real value is not available, it falls back to an estimate based on token usage.
-
-![Copilot credits view](https://raw.githubusercontent.com/feimacode/copilot-alternatives/master/assets/screenshots/copilot-credits.png)
-
-*The Copilot credits panel makes it easy to compare your current cycle against your monthly allowance.*
-
-### Monthly Credit Quota tile
-
-This appears on the Overview and Vendor dashboards whenever Copilot usage is detected. It shows:
-
-- your resolved plan name and monthly allowance
-- credits consumed so far in the current billing cycle
-- a rolling **24h / 7 day / 30 day** breakdown and per-model credits table
-
-To resolve your plan automatically, run `Copilot Alternatives: Sign in with GitHub to Detect Copilot Plan`.
-
-### Why the numbers may differ from GitHub
-
-Small differences are expected:
-
-- some turns fall back to an estimate instead of a real GitHub-reported credit count
-- the extension uses rolling windows from “now” rather than your billing-cycle start day
-- the extension only sees sessions from the current machine’s VS Code chat store
-
-Use the extension to monitor local usage trends, and GitHub’s page as the authoritative billing source.
+> 费用根据本地价格表与 Token 用量估算，仅供参考，实际费用以 API 服务商账单为准。
 
 ---
 
-## Vendor and Model Views
+## 状态栏
 
-Click a vendor in the sidebar to open a deeper view:
+状态栏火焰图标显示**今日** Token 与预估费用，悬停可查看：
 
-- daily usage charts for that vendor’s models
-- model-level token and cost tables
-- per-model charts when available
+- **过去 24 小时** — 今日 Token 与费用
+- **过去 7 天** — 最近一周
+- **过去 30 天** — 最近一月
 
-If you open the `copilot` vendor view, the dashboard switches to **credits** instead of dollar estimates.
-
----
-
-## Reloading Data
-
-You normally do not need to do this manually. The live watcher and startup backfill keep the database current automatically.
-
-If your data looks stale or missing:
-
-1. Run `Copilot Alternatives: Refresh Stats DB from local sessions`
-2. Confirm the rebuild prompt
-3. Wait for the data to be reimported from disk
-
-> This is a full rebuild, not a small trim. If you rely on older history, increase `backfillDays` before reloading.
+点击状态栏打开用量总览。
 
 ---
 
-## Configuration Reference
+## 厂商与模型视图
 
-| Setting | Default | Description |
+在侧边栏点击厂商可打开厂商仪表盘：
+
+- 该厂商各模型的每日 Token 用量图
+- 模型级 Token、请求次数与费用表
+- 输入 / 输出对比图
+
+点击模型可打开模型仪表盘，查看单模型详情与**输入上下文构成**（系统指令 / 工具定义 / 对话消息 / 文件上下文 / 工具结果）。
+
+---
+
+## 重新构建数据
+
+通常不需要手动操作——实时监听与后台同步会自动保持数据最新；无变化的会话不会被重复解析。
+
+如果数据看起来缺失或过时：
+
+1. 运行 `重新构建统计数据`
+2. 在弹窗中确认
+3. 等待数据从磁盘重新导入
+
+> 这是完整重建。如果你依赖更早的历史，请先调大 `历史数据回溯天数` 再重建。
+
+---
+
+## 设置参考
+
+| 设置 | 默认值 | 说明 |
 |---|---|---|
-| `yearlyBudgetTarget` | `250000` | Yearly budget target shown on the overview dashboard |
-| `backfillDays` | `60` | How far back to import history on first load or rebuild |
-| `watcherWindowDays` | `1` | How far back the live watcher scans for new session files |
+| `历史数据回溯天数` | `60` | 首次导入 / 重建时回溯的历史天数 |
+| `实时监听回溯天数` | `1` | 实时监听器启动时扫描新会话文件的天数 |
+| `美元兑人民币换算汇率` | `7.2` | 将底层美元价格估算换算为人民币显示（不联网获取） |
+| `日志级别` | `普通` | `普通`：仅启动/同步摘要与警告；`调试`：输出变更文件、解析耗时等详细日志（也可随时运行 `Token 用量诊断`） |
 
 ---
 
-## See Also
+## 参见
 
-- [Getting Started](HELP_GETTING_STARTED.md) — Installation, sidebar overview, and first steps
-- [Cost Estimates](HELP_COST_ESTIMATES.md) — How costs and Copilot credits are calculated and how accurate they are
-- [Session Analytics](HELP_SESSION_ANALYTICS.md) — Browsing and filtering your chat session history
+- [快速开始](HELP_GETTING_STARTED.md) — 安装、侧边栏与第一步操作
+- [费用估算](HELP_COST_ESTIMATES.md) — 费用如何计算及准确度说明
+- [会话分析](HELP_SESSION_ANALYTICS.md) — 浏览与筛选历史会话

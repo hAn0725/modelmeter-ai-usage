@@ -1,78 +1,75 @@
-# Getting Started
+# 快速开始
 
-The **Copilot & BYOK Usage Tracker** helps you understand how much you are using GitHub Copilot, BYOK providers, and other chat models — all from one place.
+**ModelMeter**（AI 用量监控）帮助你在一处了解 GitHub Copilot 与第三方 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等）的 Token 消耗与预估费用。
 
-![Usage dashboard overview](https://raw.githubusercontent.com/feimacode/copilot-alternatives/master/assets/screenshots/usage-dashboard.png)
+![用量总览](https://raw.githubusercontent.com/hAn0725/modelmeter-ai-usage/main/assets/screenshots/usage-dashboard.png)
 
-*The overview dashboard shows today’s activity, rolling 7/30-day trends, vendor share, and your budget outlook.*
-
----
-
-## Installation
-
-1. Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives)
-2. Look for the **Copilot Alternatives** icon in the Activity Bar
-3. Click it to open the sidebar
-
-No extra setup is required. The extension reads your VS Code chat session store automatically and starts tracking usage on startup.
+*用量总览展示今日活动、最近 7/30 天趋势、厂商分布与费用走势。*
 
 ---
 
-## Sidebar Overview
+## 安装
 
-The sidebar is organized into a few practical sections:
+1. 从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hAn0725.modelmeter-ai-usage) 安装本扩展
+2. 在活动栏找到 **ModelMeter** 图标
+3. 点击图标打开侧边栏
 
-| Section | What you’ll find there |
+无需额外配置。扩展会自动读取 VS Code 的聊天会话数据并在后台开始统计：激活瞬间完成（不做阻塞扫描），后台同步约 0.7 秒后开始；**未发生变化的会话不会重复解析**，日常启动几乎无感。
+
+---
+
+## 侧边栏一览
+
+| 区域 | 内容 |
 |---|---|
-| **BYOK & Model Management** | Your configured BYOK providers and models |
-| **Extensions & Plugins** | A curated list of AI coding tools you can install |
-| **Usage Stats** | Recent token consumption and request volume by vendor |
-| **Session Stats** | Recent chat sessions with token counts and costs |
-| **More Alternative Solutions** | A directory of AI coding tools, IDEs, CLIs, and plans |
-| **Help** | These guides and walkthroughs |
-
-![Sidebar directory view](https://raw.githubusercontent.com/feimacode/copilot-alternatives/master/assets/screenshots/sidebar-directory.png)
-
-*The sidebar gives you quick access to usage, sessions, BYOK tools, and the wider alternatives directory.*
+| **顶部统计** | 最近 7 天的 Token、请求数与官方 API 原价估算（¥） |
+| **模型用量** | 各厂商近 7 天的 Token 与请求次数（条形图对比） |
+| **最近会话** | 最近的聊天会话（模型 / 轮次 / 时间 / 费用），可一键展开全部 |
+| **操作按钮** | 用量总览 / 重新统计 / 帮助 |
 
 ---
 
-## First 5 Minutes
+## 前 5 分钟
 
-1. **Open the dashboard** — Run `Copilot Alternatives: Show Token Usage Dashboard` or click a vendor from **Usage Stats**.
-2. **Check the status bar** — The small flame icon in the status bar shows today’s tokens and estimated cost. Hover over it for 24h, week, and month summaries.
-3. **Review Copilot credits** — If you use GitHub Copilot, the extension shows your usage in **AI credits (cr)**. Run `Copilot Alternatives: Sign in with GitHub to Detect Copilot Plan` to resolve your plan and see quota usage.
-4. **Add a BYOK provider** — Run `Copilot Alternatives: BYOK: Add Provider` and choose a template to add your own API keys.
-5. **Browse past sessions** — Expand **Session Stats** to review chat history with turn-by-turn details.
-6. **Explore the directory** — Expand **More Alternative Solutions** to browse 100+ AI coding tools.
+1. **打开用量总览** — 运行 `打开用量总览` 命令，或点击侧边栏 **模型用量** 中的任一厂商。
+2. **查看状态栏** — 状态栏中的火焰图标显示今日 Token 与预估费用，悬停可查看过去 24 小时 / 7 天 / 30 天汇总。
+3. **查看厂商与模型明细** — 运行 `打开厂商用量` 查看厂商级统计，并可下钻到单模型仪表盘。
+4. **回看历史会话** — 在侧边栏 **最近会话** 中点击任意会话查看逐轮详情（点「查看全部会话」可展开完整列表）。
 
 ---
 
-## Key Commands
+## 常用命令
 
-| Command | What it does |
+| 命令 | 作用 |
 |---|---|
-| `Copilot Alternatives: Show Token Usage Dashboard` | Opens the main usage dashboard with charts |
-| `Copilot Alternatives: BYOK: Add Provider` | Adds a BYOK provider from a template |
-| `Copilot Alternatives: Show Session Details` | Inspects a session’s turns, tokens, and timing |
-| `Copilot Alternatives: Sign in with GitHub to Detect Copilot Plan` | Resolves your Copilot plan and quota |
-| `Copilot Alternatives: Refresh Stats DB from local sessions` | Rebuilds the local usage database from disk |
+| `打开用量总览` | 打开主用量仪表盘 |
+| `打开厂商用量` / `打开模型用量` | 查看厂商 / 模型级统计 |
+| `打开会话详情` | 查看单个会话的轮次、Token 与耗时 |
+| `重新构建统计数据` | 从本地会话文件重建统计数据库 |
+| `导出 Token 用量数据` | 将当前汇总数据导出为 JSON |
 
-Run any command from the Command Palette with `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS).
-
----
-
-## Tips
-
-- **Usage data is imported automatically** on startup. The first import may take a moment if you have a lot of history.
-- **The status bar is always live** and updates as new sessions are detected.
-- **You can tune the import window** with the `backfillDays` setting if you want more or less historical data.
+在命令面板（`Ctrl+Shift+P`，macOS 为 `Cmd+Shift+P`）中运行任意命令。
 
 ---
 
-## See Also
+## 提示
 
-- [Token Usage Tracking](HELP_TOKEN_USAGE.md) — Dashboards, status bar, and Copilot credit tracking in depth
-- [Cost Estimates](HELP_COST_ESTIMATES.md) — How costs and Copilot credits are calculated and how accurate they are
-- [Session Analytics](HELP_SESSION_ANALYTICS.md) — Browsing and filtering your chat session history
-- [BYOK Provider Management](HELP_BYOK_MANAGEMENT.md) — Adding and managing your own API key providers
+- **启动即用**：激活瞬间完成，后台同步稍后自动进行；首次使用或版本升级后的首次启动会核对全部历史会话，随后仅处理发生变化的文件。
+- **状态栏实时更新**，检测到新会话即刷新（无需手动操作）。
+- **可通过设置调整导入范围**（`历史数据回溯天数`）。
+
+---
+
+## 日志与排查
+
+- 输出面板 **ModelMeter** 默认保持安静，仅打印启动与同步摘要（每次同步一行），适合日常使用。
+- 需要详细日志时，把设置 `日志级别` 改为「调试」，可看到存储根目录、变更文件清单、解析耗时等细节。
+- 也可以随时运行命令 `Token 用量诊断`：一次性输出数据来源、文件统计、未定价模型清单等完整诊断信息，并自动打开输出面板。
+
+---
+
+## 参见
+
+- [Token 用量统计](HELP_TOKEN_USAGE.md) — 仪表盘、状态栏与会话分析
+- [费用估算](HELP_COST_ESTIMATES.md) — 费用如何计算及准确度说明
+- [会话分析](HELP_SESSION_ANALYTICS.md) — 浏览与筛选历史会话
