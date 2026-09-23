@@ -682,6 +682,11 @@ export class MetricsService implements vscode.Disposable {
 		return this._db.getSessionDetail(sessionId);
 	}
 
+	/** Recent model-ids (newest first, one row per model) for account-provider resolution. */
+	async getRecentModelIds(limit = 30): Promise<string[]> {
+		return this._db.getRecentModelIds(limit);
+	}
+
 	async getSessionFilterOptions(): Promise<SessionFilterOptions> {
 		return this._db.getSessionFilterOptions();
 	}

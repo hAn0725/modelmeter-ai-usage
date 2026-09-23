@@ -1,8 +1,8 @@
 {
 	"name": "modelmeter-ai-usage",
 	"displayName": "ModelMeter - AI 用量监控",
-	"description": "ModelMeter — 面向 VS Code AI Chat 的多模型用量、官方 API 成本与会话分析工具。支持 GitHub Copilot 与 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等），提供人民币费用仪表盘与会话统计。",
-	"version": "0.2.0",
+	"description": "ModelMeter — 面向 VS Code AI Chat 的多模型用量、官方账户额度与会话分析工具。支持 GitHub Copilot 与 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等），提供人民币费用仪表盘、会话统计，并可连接官方账户查看余额与套餐额度（密钥仅存 VS Code 安全存储）。",
+	"version": "0.3.0",
 	"publisher": "hAn0725",
 	"license": "MIT",
 	"icon": "resources/modelmeter-icon.png",
@@ -84,6 +84,18 @@
 				"title": "打开用量总览",
 				"category": "ModelMeter",
 				"icon": "$(flame)"
+			},
+			{
+				"command": "modelMeter.manageAccounts",
+				"title": "管理账户连接（官方额度）",
+				"category": "ModelMeter",
+				"icon": "$(account)"
+			},
+			{
+				"command": "modelMeter.showAccountSection",
+				"title": "打开账户与套餐",
+				"category": "ModelMeter",
+				"icon": "$(credit-card)"
 			},
 			{
 				"command": "modelMeter.exportTokenUsage",

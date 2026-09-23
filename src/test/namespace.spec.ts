@@ -51,9 +51,9 @@ describe('namespace：package.json 与源码一致性', () => {
 		}
 	});
 
-	it('每个 contributed 命令都有 registerCommand 注册（extension.ts / nodeActions.ts）', () => {
+	it('每个 contributed 命令都有 registerCommand 注册（extension.ts / nodeActions.ts / accountCommands.ts）', () => {
 		const registered = new Set<string>();
-		for (const file of ['src/extension.ts', 'src/tree/nodeActions.ts']) {
+		for (const file of ['src/extension.ts', 'src/tree/nodeActions.ts', 'src/accountUsage/accountCommands.ts']) {
 			const text = readFileSync(path.join(root, file), 'utf8');
 			for (const m of text.matchAll(/registerCommand\('([^']+)'/g)) { registered.add(m[1]); }
 		}

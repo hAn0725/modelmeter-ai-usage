@@ -885,6 +885,18 @@ export class MetricsDatabase {
 	 * Get the full detail for a single session: its SessionRow and all TurnRows.
 	 * Only completed turns with token data are returned, matching the session list.
 	 */
+	/**
+	 * Model-ids of recent turns, newest first (one row per model). Used by the
+	 * account module to resolve which provider the user is currently using.
+	 */
+	async getRecentModelIds(limit = 30): Promise<string[]> {
+		const rows = await this._all<{ model_id: string }>(
+			`SELECT model_id, MAX(timestamp) AS ts FROM turns WHERE model_state = 1 GROUP BY model_id ORDER BY ts DESC LIMIT ?`,
+			[Math.max(1, Math.min(200, Math.floor(limit)))]
+		);
+		return rows.map(r => r.model_id);
+	}
+
 	async getSessionDetail(sessionId: string): Promise<SessionDetail | null> {
 		await this._ready;
 		const [session, turns] = await Promise.all([

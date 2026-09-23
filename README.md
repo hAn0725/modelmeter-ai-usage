@@ -8,8 +8,9 @@ AI 编程助手的定价、用量限制与授权模式不断变化，许多开�
 >
 > 本仓库同时提供一个免费开源的 VS Code 扩展 —— **[ModelMeter - AI 用量监控](https://marketplace.visualstudio.com/items?itemName=hAn0725.modelmeter-ai-usage)** —— 统计用量并回看会话：
 >
-> - **用量统计** —— 按厂商与模型统计 GitHub Copilot 与第三方 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等）的 Token 消耗与预估费用（¥）
+> - **用量统计** —— 按厂商与模型统计 GitHub Copilot 与第三方 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等）的 Token 消耗与等效 API 成本（¥）
 > - **会话历史与分析** —— 浏览历史聊天会话的逐轮 Token、耗时与工具调用详情
+> - **官方账户额度** —— 连接 DeepSeek / GLM / Qwen / 百炼 / MiMo 账户后，在状态栏与侧边栏查看官方余额与套餐额度（密钥仅存 VS Code 安全存储）
 >
 > 📖 完整功能说明见 [`EXTENSION_README.md`](EXTENSION_README.md)，或直接从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives) 安装。
 >

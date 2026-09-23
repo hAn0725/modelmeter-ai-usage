@@ -5,66 +5,118 @@
 
 import * as vscode from 'vscode';
 import { TokenUsageTracker } from './tokenUsageTracker';
-import { formatCnyCompact, formatTokenCount, combineToCny } from './tokenCostEstimator';
-import { DashboardSummary } from './metricsDatabase';
+import type { AccountUsageService } from '../accountUsage/accountUsageService';
+import type { AccountProviderId } from '../accountUsage/types';
+import { ACCOUNT_PROVIDERS, getProviderDef } from '../accountUsage/providerRegistry';
+import { buildStatusBarText, buildStatusBarTooltip, type OtherAccountLine, type StatusBarInput } from '../accountUsage/statusBarModel';
 
+/** Identity of the model the user is currently generating with. */
+export interface StatusBarContext {
+	providerId: AccountProviderId | null;
+	modelId: string | null;
+}
+
+/**
+ * 0.3.0 account-centric status bar:
+ *   `$(flame) ModelMeter` when no provider is recognised,
+ *   `$(flame) DeepSeek ¥38.62` for PAYG balances,
+ *   `$(flame) GLM [████░░] 68%` for plan quota (REMAINING precentage),
+ * and a rich markdown tooltip. Repaints every 60 s refresh only the *text*
+ * (relative timestamps) — they never trigger HTTP requests; actual account
+ * data refreshes are driven by the AccountUsageService TTL policy.
+ */
 export class TokenUsageStatusBar implements vscode.Disposable {
 	private readonly _item: vscode.StatusBarItem;
-	private _refreshing = false;
-	private _refreshPending = false;
+	private _repaintTimer: ReturnType<typeof setInterval> | undefined;
+	private _inputs: StatusBarInput | null = null;
+	private _updating = false;
+	private _updatePending = false;
 
-	constructor(private readonly _tracker: TokenUsageTracker) {
+	constructor(
+		_tracker: TokenUsageTracker,
+		private readonly _accounts: AccountUsageService,
+		private readonly _getContext: () => StatusBarContext,
+		private readonly _getLocalTotals: (provider: AccountProviderId) => Promise<{ tokens: number; costCny: number }>,
+	) {
 		this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
-		this._item.command = 'modelMeter.showTokenUsage';
-		this._item.text = '$(flame) …';
+		this._item.command = 'modelMeter.showAccountSection';
+		this._item.text = '$(flame) ModelMeter';
+		this._item.tooltip = 'ModelMeter：正在读取…';
 		this._item.show();
-		void this._update();
+		this._repaintTimer = setInterval(() => this.renderNow(), 60_000);
+		void this.update();
 	}
 
-	/** Call this whenever new data arrives. */
+	/** Re-read local + account state and repaint. Safe to call on every change. */
 	update(): void { void this._update(); }
 
-	private async _update(): Promise<void> {
-		if (this._refreshing) { this._refreshPending = true; return; }
-		this._refreshing = true;
-		try {
-			const summary = await this._tracker.metricsService.getDashboardSummary();
-			const todayTokens = summary.today.totalPromptTokens + summary.today.totalCompletionTokens;
-			const todayCost = combineToCny(summary.today.estimatedCostUsd, summary.today.estimatedCostCny);
+	/** Text-only repaint (no IO, no HTTP) — used by the 60 s timer. */
+	renderNow(): void {
+		if (!this._inputs) { return; }
+		this._inputs.now = Date.now();
+		this._item.text = buildStatusBarText(this._inputs);
+		this._item.tooltip = buildStatusBarTooltip(this._inputs);
+	}
 
-			this._item.text = `$(flame) ${formatTokenCount(todayTokens)} · ${formatCnyCompact(todayCost)}`;
-			this._item.tooltip = this._buildTooltip(summary);
+	private async _update(): Promise<void> {
+		if (this._updating) { this._updatePending = true; return; }
+		this._updating = true;
+		try {
+			this._inputs = await this._buildInputs();
+			this.renderNow();
+		} catch {
+			// Status bar must never throw; keep the previous text.
 		} finally {
-			this._refreshing = false;
-			if (this._refreshPending) {
-				this._refreshPending = false;
+			this._updating = false;
+			if (this._updatePending) {
+				this._updatePending = false;
 				void this._update();
 			}
 		}
 	}
 
-	private _buildTooltip(summary: DashboardSummary): string {
-		const day24 = { tokens: summary.today.totalPromptTokens + summary.today.totalCompletionTokens, cost: combineToCny(summary.today.estimatedCostUsd, summary.today.estimatedCostCny) };
-		const week = summary.thisWeek.reduce((a, d) => ({
-			tokens: a.tokens + d.totalPromptTokens + d.totalCompletionTokens,
-			cost: a.cost + combineToCny(d.estimatedCostUsd, d.estimatedCostCny),
-		}), { tokens: 0, cost: 0 });
-		const month = summary.thisMonth.reduce((a, d) => ({
-			tokens: a.tokens + d.totalPromptTokens + d.totalCompletionTokens,
-			cost: a.cost + combineToCny(d.estimatedCostUsd, d.estimatedCostCny),
-		}), { tokens: 0, cost: 0 });
+	private async _buildInputs(): Promise<StatusBarInput> {
+		const ctx = this._getContext();
+		const def = ctx.providerId ? getProviderDef(ctx.providerId) : undefined;
+		const state = ctx.providerId ? this._accounts.get(ctx.providerId) : null;
 
-		const lines: string[] = ['Token 用量'];
+		let localTokens: number | null = null;
+		let localCostCny: number | null = null;
+		if (ctx.providerId) {
+			try {
+				const totals = await this._getLocalTotals(ctx.providerId);
+				localTokens = totals.tokens;
+				localCostCny = totals.costCny;
+			} catch {
+				// Local aggregation failure only drops the ≈ line.
+			}
+		}
 
-		lines.push(
-			`过去 24 小时：${formatTokenCount(day24.tokens)}  ${formatCnyCompact(day24.cost)}`,
-			`过去 7 天：  ${formatTokenCount(week.tokens)}  ${formatCnyCompact(week.cost)}`,
-			`过去 30 天： ${formatTokenCount(month.tokens)}  ${formatCnyCompact(month.cost)}`,
-		);
+		const others: OtherAccountLine[] = ACCOUNT_PROVIDERS
+			.filter(p => p.id !== ctx.providerId)
+			.map(p => ({ name: p.displayName, snapshot: this._accounts.get(p.id).cached?.snapshot ?? null }));
 
-		lines.push('', '点击打开用量总览');
-		return lines.join('\n');
+		return {
+			providerName: def?.displayName ?? null,
+			currentModel: ctx.modelId,
+			connected: state?.connected ?? false,
+			snapshot: state?.cached?.snapshot ?? null,
+			lastError: state?.cached?.lastError
+				? { kind: state.cached.lastError.kind, message: state.cached.lastError.message, at: state.cached.lastError.at }
+				: null,
+			updatedAt: state?.cached?.updatedAt ?? 0,
+			localCostCny,
+			localTokens,
+			others,
+			now: Date.now(),
+		};
 	}
 
-	dispose(): void { this._item.dispose(); }
+	dispose(): void {
+		if (this._repaintTimer !== undefined) {
+			clearInterval(this._repaintTimer);
+			this._repaintTimer = undefined;
+		}
+		this._item.dispose();
+	}
 }

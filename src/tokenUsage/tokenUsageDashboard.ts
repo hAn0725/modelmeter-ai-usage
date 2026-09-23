@@ -277,7 +277,7 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
 <div class="hdr">
   <div>
     <h1>Token 用量总览</h1>
-    <p class="subtitle">各厂商聊天模型 Token 消耗与预估费用 · 费用按中国大陆官方 API 标准按量原价估算。<span class="pinfo" tabindex="0" role="note" aria-label="计价规则说明">ⓘ 计价规则<span class="pinfo-pop" role="tooltip"><span class="pinfo-item">不考虑套餐 / TokenPlan / 免费额度 / 优惠或第三方渠道价格</span><span class="pinfo-item">DeepSeek 按北京时间峰谷规则逐轮计价（周末与法定节假日全天按闲时）</span><span class="pinfo-item">缓存信息缺失时按官方缓存未命中价格估算</span><span class="pinfo-item">VS Code Utility Model 后台调用可能不进入统计</span></span></span> · 最早数据：<strong>${allTime.firstTrackedDate ?? '—'}</strong> · <a href="#" onclick="_vscode.postMessage({type:'reload'});return false" style="color:var(--accent);text-decoration:none" title="从本地会话文件重新构建统计数据">↻ 重新构建统计数据</a></p>
+    <p class="subtitle">各厂商聊天模型 Token 消耗与等效 API 成本 · 按中国大陆官方按量 API 单价估算。<span class="pinfo" tabindex="0" role="note" aria-label="计价规则说明">ⓘ 计价规则<span class="pinfo-pop" role="tooltip"><span class="pinfo-item">不考虑套餐 / TokenPlan / 免费额度 / 优惠或第三方渠道价格</span><span class="pinfo-item">DeepSeek 按北京时间峰谷规则逐轮计价（周末与法定节假日全天按闲时）</span><span class="pinfo-item">缓存信息缺失时按官方缓存未命中价格估算</span><span class="pinfo-item">VS Code Utility Model 后台调用可能不进入统计</span></span></span> · 最早数据：<strong>${allTime.firstTrackedDate ?? '—'}</strong> · <a href="#" onclick="_vscode.postMessage({type:'reload'});return false" style="color:var(--accent);text-decoration:none" title="从本地会话文件重新构建统计数据">↻ 重新构建统计数据</a></p>
   </div>
   <div class="drp">
     <div class="tgl" id="tglRange">
@@ -291,9 +291,9 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
 
 <div class="grid5">
   <div class="card"><div class="lbl">今日 Token</div><div class="val">${formatTokenCount(totalToday)}</div><div class="det">输入 ${formatTokenCount(today.totalPromptTokens)} / 输出 ${formatTokenCount(today.totalCompletionTokens)}</div></div>
-  <div class="card"><div class="lbl">今日预估费用</div><div class="val">${formatCnyUi(combineToCny(today.estimatedCostUsd, today.estimatedCostCny))}</div><div class="det">${vendorEntries.length} 家厂商有活动</div></div>
+  <div class="card"><div class="lbl">今日等效 API 成本</div><div class="val">${formatCnyUi(combineToCny(today.estimatedCostUsd, today.estimatedCostCny))}</div><div class="det">${vendorEntries.length} 家厂商有活动</div></div>
   <div class="card"><div class="lbl">Token 用量</div><div class="val">${formatTokenCount(allTime.totalPromptTokens + allTime.totalCompletionTokens)}</div><div class="det">自 ${allTime.firstTrackedDate} 起</div></div>
-  <div class="card"><div class="lbl">预估费用</div><div class="val">${allUnpriced ? '暂无价格' : formatCnyUi(combineToCny(allTime.totalCostUsd, allTime.totalCostCny))}</div><div class="det">${allUnpriced ? '这些模型暂无价格数据' : `日均 ${formatCnyCompact(dailyAvgCost)}`}</div></div>
+  <div class="card"><div class="lbl">等效 API 成本</div><div class="val">${allUnpriced ? '暂无价格' : formatCnyUi(combineToCny(allTime.totalCostUsd, allTime.totalCostCny))}</div><div class="det">${allUnpriced ? '这些模型暂无价格数据' : `日均 ${formatCnyCompact(dailyAvgCost)}`}</div></div>
   <div class="card"><div class="lbl">活跃厂商</div><div class="val">${vendorEntries.length}</div><div class="det">${allTime.daysTracked} 天的数据</div></div>
 </div>
 
@@ -304,7 +304,7 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
   </div>
   <div class="ch2">
     <div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">Token（输入 / 输出）</div><div class="ch"><canvas id="tokenChart"></canvas></div></div>
-    <div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">预估费用（¥）</div><div class="ch"><canvas id="costChart"></canvas></div></div>
+    <div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">等效 API 成本（¥）</div><div class="ch"><canvas id="costChart"></canvas></div></div>
   </div>
 </div>
 
@@ -319,7 +319,7 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
   <div class="ch2">
     <div><div class="ch"><canvas id="vendorDonut"></canvas></div></div>
     <div style="overflow-y:auto;max-height:200px">
-      <table class="tbl" id="vendorTbl"><thead><tr><th>厂商</th><th>Token</th><th>预估费用</th></tr></thead><tbody>
+      <table class="tbl" id="vendorTbl"><thead><tr><th>厂商</th><th>Token</th><th>等效 API 成本</th></tr></thead><tbody>
         ${vendorEntries.map(([v, a]) => `<tr data-v="${v}">
           <td><span class="dot" style="background:${vendorColor(v)}"></span>${formatVendorName(v)}</td>
           <td>${formatTokenCount(a.promptTokens + a.completionTokens)}</td>
@@ -332,7 +332,7 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
 
 <!-- Per-Vendor Daily Chart -->
 <div class="sec">
-  <div class="sec-h"><div class="sec-t">各厂商每日预估费用</div></div>
+  <div class="sec-h"><div class="sec-t">各厂商每日等效 API 成本</div></div>
   <div style="height:200px"><canvas id="vendorStackChart"></canvas></div>
 </div>
 
@@ -386,8 +386,8 @@ scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:v=
 // ── Cost Chart ──
 const cCtx = document.getElementById('costChart').getContext('2d');
 const costChart = new Chart(cCtx,{type:'line',data:{labels:D.monthLabels,datasets:[
-  {label:'预估费用',data:D.monthCosts,borderColor:'rgba(16,185,129,.9)',backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.3,pointRadius:3,borderWidth:2}
-]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'预估费用: '+fmtCnyTiny(ctx.raw)}}},
+  {label:'等效 API 成本',data:D.monthCosts,borderColor:'rgba(16,185,129,.9)',backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.3,pointRadius:3,borderWidth:2}
+]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'等效 API 成本: '+fmtCnyTiny(ctx.raw)}}},
 scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>fmtCnyAxis(v)}}}}});
 
 // ── Vendor Donut ──

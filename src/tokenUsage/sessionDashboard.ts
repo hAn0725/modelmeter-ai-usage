@@ -230,7 +230,7 @@ export class SessionDashboard {
     <div class="det">输入 ${formatTokenCount(totalPrompt)} / 输出 ${formatTokenCount(totalCompletion)}</div>
   </div>
   <div class="card">
-    <div class="lbl">预估费用</div>
+    <div class="lbl">等效 API 成本</div>
     <div class="val">${allTurnsUnpriced ? '暂无价格' : formatCnyUi(totalCost)}</div>
     <div class="det">总耗时 ${formatMs(totalElapsed)}</div>
   </div>
@@ -263,7 +263,7 @@ export class SessionDashboard {
         <th data-sort="prompt">输入</th>
         <th data-sort="completion">输出</th>
         <th>输入上下文构成</th>
-        <th data-sort="cost">预估费用</th>
+        <th data-sort="cost">等效 API 成本</th>
         <th data-sort="toolCalls">工具调用</th>
         <th data-sort="files">文件</th>
         <th data-sort="ttfb">首次响应耗时</th>

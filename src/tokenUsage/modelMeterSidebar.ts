@@ -23,6 +23,11 @@ import * as vscode from 'vscode';
 import type { TokenUsageTracker } from './tokenUsageTracker';
 import { formatTokenCount, formatCnyCompact, combineToCny } from './tokenCostEstimator';
 import { formatVendorName } from './vendorDisplay';
+import type { AccountUsageService } from '../accountUsage/accountUsageService';
+import type { AccountProviderId } from '../accountUsage/types';
+import { ACCOUNT_PROVIDERS } from '../accountUsage/providerRegistry';
+import { providerVendorMatches } from '../accountUsage/currentProvider';
+import { buildAccountDetail, buildAccountRow, type AccountDetailModel, type AccountRowModel, type LocalProviderTotals } from '../accountUsage/accountViewModel';
 
 // ─── View model sent to the webview ────────────────────────────────────────
 
@@ -55,6 +60,10 @@ export interface SidebarData {
 	sessions: SidebarSessionRow[];
 	sessionsHint: string;
 	empty: boolean;
+	/** 0.3.0 账户与套餐 section. */
+	accounts: AccountRowModel[];
+	accountDetail: AccountDetailModel | null;
+	accountExpanded: string | null;
 }
 
 const VENDOR_BAR_COLORS = 5;
@@ -68,6 +77,14 @@ function formatSessionStamp(ts: number): string {
 	return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
+/** Whitelist-checked provider id from a webview message. */
+function readProviderArg(msg: unknown): AccountProviderId | undefined {
+	const value = (msg as { provider?: unknown }).provider;
+	return typeof value === 'string' && /^[a-z]{2,16}$/.test(value) && ACCOUNT_PROVIDERS.some(p => p.id === value)
+		? value as AccountProviderId
+		: undefined;
+}
+
 // ─── Provider ──────────────────────────────────────────────────────────────
 
 /** Session list filter state shared with the toggleSessionFilter / clearSessionFilter commands. */
@@ -79,12 +96,27 @@ export interface ModelMeterSessionFilter {
 export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	private _view: vscode.WebviewView | undefined;
 	private _debounce: ReturnType<typeof setTimeout> | undefined;
+	/** Single account row expanded at a time (provider id or null). */
+	private _expandedAccount: string | null = null;
 
 	constructor(
 		private readonly _tracker: TokenUsageTracker,
 		private readonly _extensionVersion: string,
 		private readonly _getSessionFilter: () => ModelMeterSessionFilter,
+		private readonly _accounts: AccountUsageService,
 	) { }
+
+	/** Called by `modelMeter.showAccountSection` / status bar: expand one account. */
+	async focusAccount(providerId: AccountProviderId | null): Promise<void> {
+		this._expandedAccount = providerId;
+		if (this._view && !this._view.visible) {
+			try { this._view.show?.(true); } catch { /* older VS Code without WebviewView.show */ }
+		}
+		await this._pushData();
+		if (this._view) {
+			await this._view.webview.postMessage({ type: 'focusAccount', payload: providerId });
+		}
+	}
 
 	resolveWebviewView(view: vscode.WebviewView): void {
 		this._view = view;
@@ -167,6 +199,32 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 		const rangeLabel = filter.days >= 3650 ? '全部时间' : `近 ${filter.days} 天`;
 		const sessionsHint = filter.modelName ? `${rangeLabel} · ${filter.modelName}` : rangeLabel;
 
+		// ── 0.3.0 accounts view model ─────────────────────────────────
+		const nowMs = now.getTime();
+		const accountStates = this._accounts.getAll();
+		const currentProvider = this._accounts.currentProvider();
+		const accountRows: AccountRowModel[] = [];
+		for (const def of ACCOUNT_PROVIDERS) {
+			const state = accountStates.find(s => s.provider === def.id);
+			if (!state) { continue; }
+			accountRows.push(buildAccountRow(def, state, def.id === currentProvider));
+		}
+		const expandedState = this._expandedAccount
+			? accountStates.find(s => s.provider === this._expandedAccount) ?? null
+			: null;
+		let accountDetail: AccountDetailModel | null = null;
+		if (expandedState && expandedState.connected) {
+			const localRows = vendors.filter(v => providerVendorMatches(expandedState.provider, v.vendor));
+			const localTotals: LocalProviderTotals | null = localRows.length > 0
+				? {
+					tokens: localRows.reduce((s, v) => s + v.totalTokens, 0),
+					costCny: localRows.reduce((s, v) => s + combineToCny(v.costUsd, v.costCny), 0),
+				}
+				: null;
+			accountDetail = buildAccountDetail(expandedState.provider, expandedState, localTotals, nowMs);
+		}
+		const accountExpanded = expandedState ? this._expandedAccount : null;
+
 		return {
 			version: this._extensionVersion,
 			generated: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`,
@@ -174,12 +232,15 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 				tokens: formatTokenCount(totalTokens),
 				requests: String(totalRequests),
 				cost: parseIncomplete && totalCost === 0 ? '—' : formatCnyCompact(totalCost),
-				costNote: '官方 API 原价',
+				costNote: '按官方按量价',
 			},
 			vendors: vendorRows,
 			sessions: sessionRows,
 			sessionsHint,
 			empty: vendorRows.length === 0 && sessionRows.length === 0,
+			accounts: accountRows,
+			accountDetail,
+			accountExpanded,
 		};
 	}
 
@@ -197,8 +258,7 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 
 	private _onMessage(msg: unknown): void {
 		if (!msg || typeof msg !== 'object') { return; }
-		const type = (msg as { type?: unknown }).type;
-		switch (type) {
+		const type = (msg as { type?: unknown }).type;		const providerArg = readProviderArg(msg);		switch (type) {
 			case 'ready':
 				void this._pushData();
 				break;
@@ -225,6 +285,21 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 			}
 			case 'refresh':
 				void vscode.commands.executeCommand('modelMeter.reloadTokenUsage');
+				break;
+			case 'toggleAccount':
+				if (providerArg) {
+					this._expandedAccount = this._expandedAccount === providerArg ? null : providerArg;
+					void this._pushData();
+				}
+				break;
+			case 'refreshAccount':
+				if (providerArg) {
+					void this._accounts.ensureFresh(providerArg, { manual: true }).then(() => this._pushData());
+				}
+				break;
+			case 'connectAccount':
+			case 'manageAccounts':
+				void vscode.commands.executeCommand('modelMeter.manageAccounts', providerArg);
 				break;
 			case 'openHelp':
 				void vscode.commands.executeCommand('modelMeter.openHelpDoc');
@@ -327,6 +402,45 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 	.srow .m { font-size: 10px; color: var(--vscode-descriptionForeground); }
 	.srow .r { flex: 0 0 auto; font-size: 10px; color: var(--vscode-descriptionForeground); opacity: .85; white-space: nowrap; }
 
+	.linklike { cursor: pointer; }
+	.linklike:hover { text-decoration: underline; }
+
+	.arow { padding: 5px 6px 4px; margin: 0 -6px; cursor: pointer; border-radius: 4px; }
+	.arow:hover, .arow:focus-visible { background: var(--vscode-list-hoverBackground); }
+	.arow:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+	.arow .top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+	.arow .aname { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.arow .acur { color: var(--vscode-charts-green, #89d185); margin-right: 3px; }
+	.arow .amode {
+		flex: 0 0 auto; font-size: 9px; color: var(--vscode-descriptionForeground);
+		border: 1px solid var(--vscode-panel-border, var(--mm-track));
+		border-radius: 8px; padding: 0 5px; line-height: 13px; white-space: nowrap;
+	}
+	.arow .aline2 {
+		font-size: 10px; color: var(--vscode-descriptionForeground); margin-top: 1px;
+		overflow-wrap: anywhere;
+	}
+	.arow.disconnected .aline2 { color: var(--vscode-textLink-foreground); }
+	.adetail {
+		background: var(--vscode-input-background, transparent);
+		border: 1px solid var(--vscode-contrastBorder, transparent);
+		border-radius: 5px; padding: 6px 8px; margin: 2px 0 4px; font-size: 10px;
+	}
+	.adrow { display: flex; justify-content: space-between; gap: 10px; padding: 1px 0; }
+	.adrow .l { flex: 0 0 auto; color: var(--vscode-descriptionForeground); }
+	.adrow .v { flex: 1 1 auto; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+	.adrow .v.mono {
+		font-family: var(--vscode-editor-font-family, monospace);
+		overflow-wrap: anywhere; letter-spacing: -0.5px;
+	}
+	.adstale { color: var(--vscode-editorWarning-foreground, #cca700); margin-top: 2px; }
+	.adbtns { display: flex; gap: 10px; margin-top: 4px; }
+	.adbtns .alink {
+		color: var(--vscode-textLink-foreground); background: none; border: none;
+		padding: 0; font-size: 10px; font-family: inherit; cursor: pointer;
+	}
+	.adbtns .alink:hover { text-decoration: underline; }
+
 	.linkbtn {
 		display: inline-block; margin-top: 6px; padding: 2px 0;
 		color: var(--vscode-textLink-foreground); background: none; border: none;
@@ -368,8 +482,11 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 	<div class="hero" id="hero">
 		<div class="cell"><div class="v" id="h-tokens">–</div><div class="l">Token（近 7 天）</div></div>
 		<div class="cell"><div class="v" id="h-reqs">–</div><div class="l">请求</div></div>
-		<div class="cell"><div class="v small" id="h-cost">–</div><div class="l">预估费用</div><div class="l sub" id="h-cost-note">官方 API 原价</div></div>
+		<div class="cell"><div class="v small" id="h-cost">–</div><div class="l">等效 API 成本</div><div class="l sub" id="h-cost-note">按官方按量价</div></div>
 	</div>
+
+	<div class="sec-h"><span>账户与套餐</span><span class="hint linklike" id="acct-manage" data-msg="manageAccounts" role="button" tabindex="0" aria-label="管理账户连接">管理…</span></div>
+	<div id="accounts"></div>
 
 	<div class="sec-h"><span>模型用量</span><span class="hint">近 7 天 · 按 Token</span></div>
 	<div id="vendors"></div>
@@ -392,6 +509,9 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 		let allSessions = [];
 		let sessionsHint = '';
 		let expanded = false;
+		let accountRows = [];
+		let accountDetail = null;
+		let accountExpanded = null;
 
 		function esc(s) {
 			return String(s)
@@ -443,6 +563,43 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 			}
 		}
 
+		function renderAccounts() {
+			const host = document.getElementById('accounts');
+			if (!accountRows.length) {
+				host.innerHTML = '<div class="empty">暂无账户配置</div>';
+				return;
+			}
+			const html = accountRows.map(function (r) {
+				const isExpanded = accountExpanded === r.id && accountDetail;
+				let row = '<div class="arow' + (r.connected ? '' : ' disconnected') + '"' +
+					' data-msg="' + (r.connected ? 'toggleAccount' : 'connectAccount') + '"' +
+					' data-provider="' + esc(r.id) + '"' +
+					' title="' + (r.connected ? '展开账户详情' : '点击连接账户') + '"' +
+					' tabindex="0" role="button" aria-label="' + esc(r.name) + '：' + esc(r.line2) + '">' +
+					'<div class="top"><span class="aname">' +
+					(r.current ? '<span class="acur" title="当前使用模型所属账户">●</span>' : '') +
+					esc(r.name) + '</span><span class="amode">' + esc(r.mode) + '</span></div>' +
+					'<div class="aline2">' + esc(r.line2) + '</div></div>';
+				if (isExpanded) { row += renderAccountDetail(accountDetail); }
+				return row;
+			}).join('');
+			host.innerHTML = html;
+		}
+
+		function renderAccountDetail(d) {
+			const rows = (d.rows || []).map(function (row) {
+				const mono = String(row.value).indexOf('[') >= 0 ? ' mono' : '';
+				return '<div class="adrow"><span class="l">' + esc(row.label) + '</span>' +
+					'<span class="v' + mono + '">' + esc(row.value) + '</span></div>';
+			}).join('');
+			return '<div class="adetail" data-stop="1">' + rows +
+				(d.stale ? '<div class="adstale">⚠ ' + esc(d.stale) + '</div>' : '') +
+				'<div class="adbtns">' +
+				'<button class="alink" data-msg="refreshAccount" data-provider="' + esc(d.provider) + '">↻ 刷新</button>' +
+				'<button class="alink" data-msg="manageAccounts" data-provider="' + esc(d.provider) + '">管理 / 断开</button>' +
+				'</div></div>';
+		}
+
 		function render(data) {
 			document.getElementById('ver').textContent = data.version ? 'v' + data.version : '';
 			document.getElementById('updated').textContent = data.generated ? ('更新于 ' + data.generated) : '';
@@ -450,6 +607,10 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 			document.getElementById('h-reqs').textContent = data.week.requests;
 			document.getElementById('h-cost').textContent = data.week.cost;
 			document.getElementById('h-cost-note').textContent = data.week.costNote;
+			accountRows = data.accounts || [];
+			accountDetail = data.accountDetail || null;
+			accountExpanded = data.accountExpanded || null;
+			renderAccounts();
 			renderVendors(data.vendors || []);
 			allSessions = data.sessions || [];
 			sessionsHint = data.sessionsHint || '';
@@ -460,11 +621,16 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 			const msg = ev.data;
 			if (msg && msg.type === 'data' && msg.payload) {
 				render(msg.payload);
+			} else if (msg && msg.type === 'focusAccount') {
+				const host = document.getElementById('accounts');
+				if (host && host.scrollIntoView) { host.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
 			}
 		});
 
 		// Event delegation: data-msg attributes map to the host-side whitelist.
 		document.addEventListener('click', function (ev) {
+			// Clicks inside the detail card only act on the buttons (never collapse the row).
+			if (ev.target && ev.target.closest && ev.target.closest('.adetail') && !ev.target.closest('.alink')) { return; }
 			const el = ev.target && ev.target.closest ? ev.target.closest('[data-msg]') : null;
 			if (!el) { return; }
 			const msg = el.getAttribute('data-msg');
@@ -472,6 +638,9 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 				vscode.postMessage({ type: 'openSession', sessionId: el.getAttribute('data-session-id') || '' });
 			} else if (msg === 'openVendor') {
 				vscode.postMessage({ type: 'openVendor', vendorId: el.getAttribute('data-vendor-id') || '' });
+			} else if (msg === 'toggleAccount' || msg === 'refreshAccount' || msg === 'connectAccount' || msg === 'manageAccounts') {
+				const provider = el.getAttribute('data-provider');
+				vscode.postMessage(provider ? { type: msg, provider: provider } : { type: msg });
 			} else {
 				vscode.postMessage({ type: msg });
 			}

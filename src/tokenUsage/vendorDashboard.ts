@@ -274,7 +274,7 @@ export class VendorDashboard {
   <div class="card"><div class="lbl">Token 用量</div><div class="val">${formatTokenCount(totalTokens)}</div><div class="det">输入 ${formatTokenCount(totalPromptTokens)} / 输出 ${formatTokenCount(totalCompletionTokens)}</div></div>
   <div class="card"><div class="lbl">请求次数</div><div class="val">${totalRequests.toLocaleString()}</div><div class="det">共 ${models.length} 个模型</div></div>
   <div class="card"><div class="lbl">模型数</div><div class="val">${models.length}</div><div class="det">最近 ${this._days} 天内活跃</div></div>
-  <div class="card"><div class="lbl">预估费用</div><div class="val">${allUnpriced ? '暂无价格' : formatCnyUi(totalCost)}</div><div class="det">${allUnpriced ? '这些模型暂无价格数据' : '基于官方 API 原价估算'}</div></div>
+  <div class="card"><div class="lbl">等效 API 成本</div><div class="val">${allUnpriced ? '暂无价格' : formatCnyUi(totalCost)}</div><div class="det">${allUnpriced ? '这些模型暂无价格数据' : '按官方按量价估算'}</div></div>
 </div>
 
 <!-- 用量趋势 -->
@@ -296,7 +296,7 @@ export class VendorDashboard {
       <th data-sort="modelId">模型</th><th data-sort="requestCount">请求次数</th>
       <th data-sort="totalTokens" class="sorted">总 Token</th>
       <th data-sort="promptTokens">输入</th><th data-sort="completionTokens">输出</th>
-      <th data-sort="cost">预估费用</th>
+      <th data-sort="cost">等效 API 成本</th>
     </tr></thead>
     <tbody id="modelTbody">${modelEntries.map(m => `<tr>
       <td>${m.modelId}</td><td>${m.requestCount.toLocaleString()}</td>

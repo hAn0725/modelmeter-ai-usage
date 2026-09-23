@@ -21,6 +21,12 @@ import { LogServiceImpl, LogLevel } from './platform/log/common/logService';
 import { VSCodeLogTarget, ConsoleLogTarget } from './platform/log/vscode/logService';
 import { logVendorMapping } from './tokenUsage/vendorResolver';
 import { LEGACY_CONFIG_MAP, LEGACY_CONFIG_MIGRATION_VERSION, STATE_KEYS, planConfigMigration, planSeenRequestIdsMigration, ConfigInspectLike } from './tokenUsage/legacyConfig';
+import { AccountCredentialStore } from './accountUsage/credentialStore';
+import { AccountUsageService } from './accountUsage/accountUsageService';
+import { PROVIDER_FETCHERS } from './accountUsage/fetchers';
+import { resolveCurrentProvider, providerVendorMatches } from './accountUsage/currentProvider';
+import { registerAccountCommands } from './accountUsage/accountCommands';
+import type { AccountProviderId } from './accountUsage/types';
 
 export function activate(context: vscode.ExtensionContext) {
 	const activationStart = Date.now();
@@ -65,6 +71,40 @@ export function activate(context: vscode.ExtensionContext) {
 	tokenTracker.activate(context);
 	context.subscriptions.push(tokenTracker);
 
+	// ─── 0.3.0 账户与套餐（官方额度） ───
+	// All account state lives in one service; credentials ONLY in
+	// SecretStorage. Nothing here touches the network during activation —
+	// first fetches are scheduled off the critical path below.
+	const accountCredentials = new AccountCredentialStore(context.secrets);
+	const currentAccountContext: { providerId: AccountProviderId | null; modelId: string | null } = { providerId: null, modelId: null };
+	let currentContextResolvedAt = 0;
+	const refreshCurrentContext = async (force = false): Promise<void> => {
+		if (!force && Date.now() - currentContextResolvedAt < 20_000) { return; }
+		currentContextResolvedAt = Date.now();
+		try {
+			const ids = await tokenTracker.metricsService.getRecentModelIds(30);
+			currentAccountContext.modelId = ids[0] ?? null;
+			currentAccountContext.providerId = resolveCurrentProvider(ids);
+		} catch { /* keep previous context */ }
+	};
+	const accountService = new AccountUsageService({
+		credentials: accountCredentials,
+		memento: context.globalState,
+		fetchers: PROVIDER_FETCHERS,
+		resolveCurrentProvider: () => currentAccountContext.providerId,
+		log: message => logService.info(`[Account] ${message}`),
+	});
+	void accountService.refreshConnectedFlags();
+
+	const localTotalsFor = async (provider: AccountProviderId): Promise<{ tokens: number; costCny: number }> => {
+		const vendors = await tokenTracker.metricsService.getVendorBreakdown7d();
+		const rows = vendors.filter(v => providerVendorMatches(provider, v.vendor));
+		return {
+			tokens: rows.reduce((s, v) => s + v.totalTokens, 0),
+			costCny: rows.reduce((s, v) => s + combineToCny(v.costUsd, v.costCny), 0),
+		};
+	};
+
 	// ─── Sidebar（ModelMeter WebviewView） ───────────────────────────────
 	// The previous tree sidebar is replaced by a webview view. TreeProvider is
 	// kept only as the session-filter state holder used by the filter commands.
@@ -73,13 +113,19 @@ export function activate(context: vscode.ExtensionContext) {
 		tokenTracker,
 		(context.extension.packageJSON as { version?: string }).version ?? '',
 		() => treeProvider.sessionFilter,
+		accountService,
 	);
 	context.subscriptions.push(sidebarProvider);
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider('modelMeter.main', sidebarProvider, {
 		webviewOptions: { retainContextWhenHidden: false },
 	}));
 
-	const tokenStatusBar = new TokenUsageStatusBar(tokenTracker);
+	const tokenStatusBar = new TokenUsageStatusBar(
+		tokenTracker,
+		accountService,
+		() => currentAccountContext,
+		localTotalsFor,
+	);
 	tokenTracker.onDidUpdate(() => tokenStatusBar.update());
 	// Refresh dashboard when stored data changes (if dashboard is open)
 	tokenTracker.onDidChangeStored(() => {
@@ -97,8 +143,41 @@ export function activate(context: vscode.ExtensionContext) {
 			SessionDashboard.currentPanel.update();
 		}
 		sidebarProvider.notifyDataChanged();
+		// 0.3.0: re-resolve the current model (cheap, cached) and refresh only
+		// the current provider's account (TTL/single-flight guarded inside).
+		void refreshCurrentContext().then(async () => {
+			tokenStatusBar.update();
+			await accountService.ensureFresh(accountService.currentProvider());
+		});
 	});
 	context.subscriptions.push(tokenStatusBar);
+
+	// Account-state changes repaint both surfaces (no fetch is triggered here).
+	context.subscriptions.push(accountService.onDidChange(() => {
+		tokenStatusBar.update();
+		sidebarProvider.notifyDataChanged();
+	}));
+	// Credentials added/removed outside our flows (or cleared from settings sync).
+	context.subscriptions.push(context.secrets.onDidChange(() => {
+		void accountService.refreshConnectedFlags().then(() => sidebarProvider.notifyDataChanged());
+	}));
+
+	// Account commands (connect / reconnect / disconnect / show section).
+	registerAccountCommands(context, {
+		service: accountService,
+		credentials: accountCredentials,
+		focusAccountSection: provider => { void sidebarProvider.focusAccount(provider); },
+		notifyViews: () => { tokenStatusBar.update(); sidebarProvider.notifyDataChanged(); },
+	});
+
+	// Off the critical path: resolve which provider the recent turns belong to,
+	// then ask for a TTL-guarded refresh of just that account.
+	setTimeout(() => {
+		void refreshCurrentContext(true).then(async () => {
+			tokenStatusBar.update();
+			await accountService.ensureFresh(accountService.currentProvider());
+		});
+	}, 900);
 
 	// ─── Token Usage Commands ───────────────────────────────────────────
 	context.subscriptions.push(

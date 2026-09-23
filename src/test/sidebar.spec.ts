@@ -16,6 +16,7 @@ import { ModelMeterSidebarProvider } from '../tokenUsage/modelMeterSidebar';
 import type { SidebarData } from '../tokenUsage/modelMeterSidebar';
 import type { VendorAgg, SessionSummary } from '../tokenUsage/metricsDatabase';
 import type { TokenUsageTracker } from '../tokenUsage/tokenUsageTracker';
+import type { AccountUsageService } from '../accountUsage/accountUsageService';
 
 function makeVendor(partial: Partial<VendorAgg> & { vendor: string }): VendorAgg {
 	return {
@@ -43,10 +44,16 @@ function collect(vendors: VendorAgg[], sessions: SessionSummary[], filter: { day
 			listSessions: async () => sessions,
 		},
 	};
+	const fakeAccounts = {
+		getAll: () => [],
+		currentProvider: () => null,
+		ensureFresh: async () => { /* no-op */ },
+	};
 	const provider = new ModelMeterSidebarProvider(
 		fakeTracker as unknown as TokenUsageTracker,
-		'0.2.0',
+		'0.3.0',
 		() => filter,
+		fakeAccounts as unknown as AccountUsageService,
 	);
 	return (provider as unknown as { _collectData(): Promise<SidebarData> })._collectData();
 }
@@ -77,7 +84,7 @@ describe('ModelMeterSidebar 数据准备', () => {
 			makeVendor({ vendor: 'Dots', totalTokens: 1000, requestCount: 2, unpricedCount: 2 }),
 		], []);
 		expect(data.week.cost).toBe('—');
-		expect(data.week.costNote).toBe('官方 API 原价');
+		expect(data.week.costNote).toBe('按官方按量价');
 	});
 
 	it('有价格时显示 ¥ 金额（CNY 不经汇率；USD 规则折算一次）', async () => {
@@ -120,6 +127,6 @@ describe('ModelMeterSidebar 数据准备', () => {
 		expect(data.vendors).toEqual([]);
 		expect(data.sessions).toEqual([]);
 		expect(data.empty).toBe(true);
-		expect(data.version).toBe('0.2.0');
+		expect(data.version).toBe('0.3.0');
 	});
 });

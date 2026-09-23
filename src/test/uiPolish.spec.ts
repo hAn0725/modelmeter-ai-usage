@@ -13,7 +13,7 @@
  *    old absolute “输入 vs 输出” grouped bar; table deduplicated.
  *  - Overview: pricing note is a one-liner + ⓘ 计价规则 popover; segmented
  *    control uses compact labels with tooltips.
- *  - Sidebar: hero labels (预估费用 + 官方 API 原价), keyboard support.
+ *  - Sidebar: hero labels (等效 API 成本 + 按官方按量价), keyboard support.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -33,8 +33,8 @@ describe('Session UI 精简与构成面板', () => {
 		expect(text).not.toContain('<th>提示词构成</th>');
 	});
 
-	it('保留最终列清单（# 时间 模型 输入 输出 输入上下文构成 预估费用 工具调用 文件 首次响应耗时 总耗时）', () => {
-		for (const label of ['#', '时间', '模型', '输入', '输出', '输入上下文构成', '预估费用', '工具调用', '文件', '首次响应耗时', '总耗时']) {
+	it('保留最终列清单（# 时间 模型 输入 输出 输入上下文构成 等效 API 成本 工具调用 文件 首次响应耗时 总耗时）', () => {
+		for (const label of ['#', '时间', '模型', '输入', '输出', '输入上下文构成', '等效 API 成本', '工具调用', '文件', '首次响应耗时', '总耗时']) {
 			expect(text).toContain(`>${label}</th>`);
 		}
 	});
@@ -84,7 +84,7 @@ describe('Vendor Dashboard 图表职责', () => {
 describe('Overview 与 Sidebar polish', () => {
 	it('Overview：一句话计价说明 + ⓘ 计价规则 popover（含 utility 说明）', () => {
 		const text = read('src/tokenUsage/tokenUsageDashboard.ts');
-		expect(text).toContain('费用按中国大陆官方 API 标准按量原价估算');
+		expect(text).toContain('按中国大陆官方按量 API 单价估算');
 		expect(text).toContain('ⓘ 计价规则');
 		expect(text).toContain('VS Code Utility Model 后台调用可能不进入统计');
 	});
@@ -98,10 +98,10 @@ describe('Overview 与 Sidebar polish', () => {
 		expect(text).toContain('title="自选开始日期（含当天）"');
 	});
 
-	it('Sidebar：第三指标为 预估费用 + 官方 API 原价；键盘可达', () => {
+	it('Sidebar：第三指标为 等效 API 成本 + 按官方按量价；键盘可达', () => {
 		const text = read('src/tokenUsage/modelMeterSidebar.ts');
-		expect(text).toContain('>预估费用</div>');
-		expect(text).toContain('官方 API 原价');
+		expect(text).toContain('>等效 API 成本</div>');
+		expect(text).toContain('按官方按量价');
 		expect(text).toContain('tabindex="0"');
 		expect(text).toContain('aria-label=');
 		expect(text).toContain("ev.key !== 'Enter'");

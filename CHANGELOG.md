@@ -28,6 +28,23 @@ All notable changes to this project will be documented in this file.
 - **Expanded `keywords`** with feature-intent terms (usage tracking, session history, session analysis, credits, dashboard, key management, etc.) and provider names (DeepSeek, Mistral, OpenRouter, Qwen, Kimi, GLM/Z.ai, MiniMax, MiMo, and more) so the extension surfaces for provider-specific searches like "deepseek byok" or "kimi usage tracking".
 - **Added `Visualization` category** alongside `AI`/`Other` to reflect the chart-based dashboards.
 
+## [0.3.0] — 2026-09-23
+
+### 🎯 官方账户额度（融合进既有侧边栏与状态栏）
+
+- **DeepSeek** — 官方余额 API（`api.deepseek.com/user/balance`），API Key（Bearer）鉴权，展示余额与赠金/充值拆分
+- **GLM / Z.ai** — Coding Plan 额度（5h / 周 / MCP 月窗口），API Key 鉴权；支持 Global（api.z.ai）与中国大陆（open.bigmodel.cn）双区域；国内站支持**预付余额**（无需额外凭据）：套餐账号余额与额度并存展示，按量账号自动回退为余额
+- **Qwen / 百炼** — Token Plan 滚动 5h + 周额度，控制台 Cookie；支持中国大陆（百炼）与国际（Qwen Cloud）双区域；可选绑定**阿里云 AccessKey**（仅需只读权限）直接显示阿里云账户余额（百炼消耗的即是它），零依赖实现 POP 签名，AK 仅存 SecretStorage
+- **MiMo / 小米** — 账户余额 + Token Plan 套餐/月窗口，控制台 Cookie
+- **连接方式** — 浏览器登录自动获取 Cookie（零依赖 CDP，使用本机 Edge/Chrome 临时配置目录）或手动粘贴；API Key 为标准密码输入框
+- **安全** — 所有密钥 / Cookie 仅存 VS Code SecretStorage；不写入设置、数据库、日志与导出文件；错误文本自动脱敏
+- **状态栏** — 只显示“当前使用模型”所属账户：按量显示余额（`$(flame) DeepSeek ¥38.62`），套餐显示 6 格剩余进度条（`$(flame) GLM [████░░] 68%`）；悬停查看当前账户详情、其他账户一览与本地等效 API 成本
+- **侧边栏** — 新增“账户与套餐”区块（融入既有 modelMeter.main 视图）：连接状态、模式标签（按量 / Coding Plan / Token Plan / 套餐）；展开后查看 10 格额度进度条、重置时间、本地 Token 与等效 API 成本
+- **刷新策略** — 惰性触发 + TTL（当前账户 10 分钟 / 其他 30 分钟）、单飞去重（UI 重绘不触发请求）；失败保留上次快照；401 冻结至重连；429 冷却 15 分钟
+- **口径说明** — 官方数据仅用于余额/额度；本地数据用于 Token / 会话 / 等效 API 成本；Token Plan 的“等效 API 成本”不代表实际扣款
+- **按量账号与错误展示** — 未订阅套餐的账号（如 GLM / 千问按量计费）不会误报“刷新失败”，而显示中性的“按量计费 · 无套餐额度 / 未检测到套餐订阅”；官方接口错误原因（脱敏后）会显示在侧边栏详情与状态栏悬停提示中
+- **新增命令** — “管理账户连接（官方额度）”、“打开账户与套餐”
+
 ## [0.2.0] — 2026-09-23
 
 首个 ModelMeter 独立发布候选版本。
