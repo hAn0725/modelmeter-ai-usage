@@ -12,7 +12,7 @@ AI 编程助手的定价、用量限制与授权模式不断变化，许多开�
 > - **会话历史与分析** —— 浏览历史聊天会话的逐轮 Token、耗时与工具调用详情
 > - **官方账户额度** —— 连接 DeepSeek / GLM / Qwen / 百炼 / MiMo 账户后，在状态栏与侧边栏查看官方余额与套餐额度（密钥仅存 VS Code 安全存储）
 >
-> 📖 完整功能说明见 [`EXTENSION_README.md`](EXTENSION_README.md)，或直接从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives) 安装。
+> 📖 完整功能说明见 [`EXTENSION_README.md`](EXTENSION_README.md)，或直接从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hAn0725.modelmeter-ai-usage) 安装。
 >
 > ℹ️ **ModelMeter 基于 [feimacode/copilot-alternatives](https://github.com/feimacode/copilot-alternatives) 修改，为独立社区分支，并非原项目官方产品。**
 
