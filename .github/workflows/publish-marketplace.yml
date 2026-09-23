@@ -83,11 +83,11 @@ jobs:
 
           TARGETS=("linux-x64" "win32-x64" "darwin-arm64")
           for TARGET in "${TARGETS[@]}"; do
-            if ! echo "$ASSETS" | grep -q "copilot-alternatives-$TARGET-$VERSION.vsix"; then
-              echo "❌ ERROR: copilot-alternatives-$TARGET-$VERSION.vsix not found in release!"
+            if ! echo "$ASSETS" | grep -q "modelmeter-ai-usage-$TARGET-$VERSION.vsix"; then
+              echo "❌ ERROR: modelmeter-ai-usage-$TARGET-$VERSION.vsix not found in release!"
               exit 1
             fi
-            echo "✅ Found: copilot-alternatives-$TARGET-$VERSION.vsix"
+            echo "✅ Found: modelmeter-ai-usage-$TARGET-$VERSION.vsix"
           done
 
       - name: Check VSCE_PAT secret
@@ -123,7 +123,7 @@ jobs:
 
           echo "📥 Downloading all platform VSIXes from release v$VERSION..."
           gh release download "v$VERSION" --repo "$REPO" \
-            --pattern "copilot-alternatives-*-$VERSION.vsix*" \
+            --pattern "modelmeter-ai-usage-*-$VERSION.vsix*" \
             --dir .
 
           echo "✅ Download complete"
@@ -131,8 +131,8 @@ jobs:
 
           TARGETS=("linux-x64" "win32-x64" "darwin-arm64")
           for TARGET in "${TARGETS[@]}"; do
-            if [ ! -f "copilot-alternatives-$TARGET-$VERSION.vsix" ]; then
-              echo "❌ VSIX not found: copilot-alternatives-$TARGET-$VERSION.vsix"
+            if [ ! -f "modelmeter-ai-usage-$TARGET-$VERSION.vsix" ]; then
+              echo "❌ VSIX not found: modelmeter-ai-usage-$TARGET-$VERSION.vsix"
               exit 1
             fi
           done
@@ -143,8 +143,8 @@ jobs:
           VERSION="${{ needs.validate.outputs.version }}"
           TARGETS=("linux-x64" "win32-x64" "darwin-arm64")
           for TARGET in "${TARGETS[@]}"; do
-            VSIX="dist/copilot-alternatives-$TARGET-$VERSION.vsix"
-            SHA="dist/copilot-alternatives-$TARGET-$VERSION.vsix.sha256"
+            VSIX="dist/modelmeter-ai-usage-$TARGET-$VERSION.vsix"
+            SHA="dist/modelmeter-ai-usage-$TARGET-$VERSION.vsix.sha256"
             if [ ! -f "$SHA" ]; then
               echo "⚠️  Checksum file not found for $TARGET, skipping"
               continue
@@ -166,12 +166,12 @@ jobs:
           VERSION="${{ needs.validate.outputs.version }}"
           TARGETS=("linux-x64" "win32-x64" "darwin-arm64")
           for TARGET in "${TARGETS[@]}"; do
-            VSIX="dist/copilot-alternatives-$TARGET-$VERSION.vsix"
+            VSIX="dist/modelmeter-ai-usage-$TARGET-$VERSION.vsix"
             echo "📦 Publishing $TARGET..."
             vsce publish --packagePath "$VSIX"
             echo "✅ Published $TARGET"
           done
-          echo "🔗 Marketplace: https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives"
+          echo "🔗 Marketplace: https://marketplace.visualstudio.com/items?itemName=hAn0725.modelmeter-ai-usage"
 
   summary:
     needs: [validate, download-and-publish]
@@ -189,7 +189,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ needs.download-and-publish.result }}" == "success" ]; then
-            echo "✅ **Published**: [copilot-alternatives](https://marketplace.visualstudio.com/items?itemName=feima.copilot-alternatives)" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Published**: [ModelMeter - AI 用量监控](https://marketplace.visualstudio.com/items?itemName=hAn0725.modelmeter-ai-usage)" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Publication failed**" >> $GITHUB_STEP_SUMMARY
           fi

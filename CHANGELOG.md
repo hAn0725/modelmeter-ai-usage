@@ -28,6 +28,38 @@ All notable changes to this project will be documented in this file.
 - **Expanded `keywords`** with feature-intent terms (usage tracking, session history, session analysis, credits, dashboard, key management, etc.) and provider names (DeepSeek, Mistral, OpenRouter, Qwen, Kimi, GLM/Z.ai, MiniMax, MiMo, and more) so the extension surfaces for provider-specific searches like "deepseek byok" or "kimi usage tracking".
 - **Added `Visualization` category** alongside `AI`/`Other` to reflect the chart-based dashboards.
 
+## [0.2.0] — 2026-09-23
+
+首个 ModelMeter 独立发布候选版本。
+
+### 主要功能
+
+- VS Code AI Chat 多模型 Token 用量统计
+- DeepSeek / Qwen / GLM / MiMo 等模型统计
+- 中国大陆官方 API 标准按量原价估算
+- DeepSeek 北京时间峰谷 / 周末 / 法定节假日计价
+- Overview / Vendor / Model / Session Analytics
+- 会话级与单轮输入上下文构成
+- Tool Calls / Files / 首次响应耗时 / 总耗时
+- emptyWindowChatSessions 支持
+- 本地 SQLite 统计
+- ModelMeter Sidebar
+
+### 限制说明
+
+- VS Code 内部未写入 chatSessions 的 Utility Model 调用无法保证统计
+- 无可靠缓存 Token 数据时按缓存未命中价估算
+- 费用不考虑 TokenPlan / Coding Plan / 免费额度 / 优惠 / 第三方渠道
+
+### 隐私
+
+- 本地处理
+- 不读取 API Key
+- 不上传聊天内容
+- 不上传统计数据
+
+ModelMeter 基于 [feimacode/copilot-alternatives](https://github.com/feimacode/copilot-alternatives) 修改，为独立社区分支。
+
 ## [0.1.6] — 2026-07-20
 
 ### ✨ Copilot Credit Tracking
