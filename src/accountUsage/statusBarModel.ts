@@ -7,13 +7,15 @@
  * StatusBar model — pure functions so the exact text/tooltip behaviour is
  * unit-testable without a VS Code host.
  *
- * Rules (0.3.0 spec):
- *  - only the provider of the *currently observed* model is shown
- *  - PAYG → `DeepSeek ¥38.62`; plan → `GLM [████░░] 68%` (6-cell remaining bar)
- *  - unknown provider → `ModelMeter` (never guess)
- *  - tooltip: full detail for the current provider, compact 5h/primary line
- *    for the other connected accounts, local equivalent-API cost clearly
- *    marked as such (never mixed with plan quota).
+ * Rules (0.4.0):
+ *  - only the provider of the *currently observed* model is shown; unknown →
+ *    `ModelMeter` (never guess)
+ *  - the text is one line: provider · 本轮 tokens · output speed · equivalent
+ *    cost · official balance (plan accounts without a balance fall back to the
+ *    primary quota bar) — every segment is optional and self-describing
+ *  - tooltip: active-conversation detail, full account detail for the current
+ *    provider, compact lines for other connected accounts, and honest wording
+ *    that the equivalent API cost never represents plan billing.
  */
 
 import type { AccountSnapshot } from './types';
@@ -23,6 +25,19 @@ import { STATUS_BAR_CELLS, DETAIL_CELLS, compactAccountSummary, formatPercent, f
 export interface OtherAccountLine {
 	name: string;
 	snapshot: AccountSnapshot | null;
+}
+
+/** Active (latest) conversation metrics — local database facts. */
+export interface ActiveSessionInput {
+	turns: number;
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+	/** Output speed (completion tokens per second); null when unavailable. */
+	outputTps: number | null;
+	costCny: number;
+	/** True when any turn of the session has no official price. */
+	unpriced: boolean;
 }
 
 export interface StatusBarInput {
@@ -38,8 +53,21 @@ export interface StatusBarInput {
 	/** Local equivalent-API cost for the current provider, last 7 days (≈). */
 	localCostCny: number | null;
 	localTokens: number | null;
+	/** Active (latest) conversation metrics (null = no completed turns yet). */
+	session: ActiveSessionInput | null;
 	others: OtherAccountLine[];
 	now: number;
+}
+
+/** Same compact style as the sidebar hero (`12.3K` / `1.23M`). */
+export function compactTokens(n: number): string {
+	if (n >= 1_000_000) { return `${(n / 1_000_000).toFixed(2)}M`; }
+	if (n >= 1_000) { return `${(n / 1_000).toFixed(1)}K`; }
+	return String(Math.round(n));
+}
+
+function formatCostAmount(cny: number): string {
+	return cny > 0 && cny < 0.005 ? '<0.01' : cny.toFixed(2);
 }
 
 export function buildStatusBarText(input: StatusBarInput): string {
@@ -47,19 +75,34 @@ export function buildStatusBarText(input: StatusBarInput): string {
 	if (!input.providerName) {
 		return `${flame} ModelMeter`;
 	}
-	if (!input.connected || !input.snapshot) {
-		return `${flame} ${input.providerName}`;
+	const parts: string[] = [input.providerName];
+
+	// 本轮对话（本地统计）：tokens / 输出速度 / 等效成本
+	const session = input.session;
+	if (session && session.totalTokens > 0) {
+		parts.push(`本轮 ${compactTokens(session.totalTokens)}`);
+		if (session.outputTps !== null && session.outputTps > 0) {
+			parts.push(`${Math.round(session.outputTps)} tok/s`);
+		}
+		if (!(session.unpriced && session.costCny === 0)) {
+			parts.push(`≈¥${formatCostAmount(session.costCny)}`);
+		}
 	}
-	const primary = selectPrimaryWindow(input.snapshot);
-	if (primary && primary.remainingPercent !== undefined) {
-		return `${flame} ${input.providerName} [${formatProgressBar(primary.remainingPercent, STATUS_BAR_CELLS)}] ${formatPercent(primary.remainingPercent)}`;
+
+	// 账户额度：余额优先；无余额的套餐回退到主进度条
+	if (input.connected && input.snapshot) {
+		if (input.snapshot.balance) {
+			const currency = input.snapshot.balance.currency || 'CNY';
+			const symbol = currency === 'CNY' ? '¥' : `${currency} `;
+			parts.push(`余额 ${symbol}${input.snapshot.balance.value.toFixed(2)}`);
+		} else {
+			const primary = selectPrimaryWindow(input.snapshot);
+			if (primary && primary.remainingPercent !== undefined) {
+				parts.push(`[${formatProgressBar(primary.remainingPercent, STATUS_BAR_CELLS)}] ${formatPercent(primary.remainingPercent)}`);
+			}
+		}
 	}
-	if (input.snapshot.balance) {
-		const currency = input.snapshot.balance.currency || 'CNY';
-		const symbol = currency === 'CNY' ? '¥' : `${currency} `;
-		return `${flame} ${input.providerName} ${symbol}${input.snapshot.balance.value.toFixed(2)}`;
-	}
-	return `${flame} ${input.providerName}`;
+	return `${flame} ${parts.join(' · ')}`;
 }
 
 function otherLine(line: OtherAccountLine): string {
@@ -71,6 +114,21 @@ export function buildStatusBarTooltip(input: StatusBarInput): string {
 	const lines: string[] = ['**ModelMeter**', ''];
 	if (input.currentModel) {
 		lines.push(`当前模型 ${input.currentModel}`, '');
+	}
+	// 当前会话（本地统计）
+	const session = input.session;
+	if (session && session.totalTokens > 0) {
+		lines.push('当前会话（本地统计）');
+		lines.push(`  ${session.turns} 轮 · 合计 ${compactTokens(session.totalTokens)}（输入 ${compactTokens(session.promptTokens)} / 输出 ${compactTokens(session.completionTokens)}）`);
+		if (session.outputTps !== null && session.outputTps > 0) {
+			lines.push(`  输出速度 ≈ ${session.outputTps.toFixed(1)} tok/s`);
+		}
+		if (!(session.unpriced && session.costCny === 0)) {
+			lines.push(`  等效 API 成本 ≈ ¥${session.costCny.toFixed(2)}${session.unpriced ? '（部分模型无价格，为下限）' : ''}`);
+		} else {
+			lines.push('  等效 API 成本：暂无价格数据');
+		}
+		lines.push('  按本地捕获的 Token 与官方按量单价换算，不代表套餐实际扣款', '');
 	}
 	if (!input.providerName) {
 		lines.push('未能识别当前模型对应的官方账户。', '');

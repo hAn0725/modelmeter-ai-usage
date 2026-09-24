@@ -29,6 +29,7 @@ function input(partial: Partial<StatusBarInput> = {}): StatusBarInput {
 		updatedAt: 0,
 		localCostCny: null,
 		localTokens: null,
+		session: null,
 		others: [],
 		now: NOW,
 		...partial,
@@ -48,12 +49,12 @@ describe('状态栏文本', () => {
 		expect(buildStatusBarText(input({
 			providerName: 'DeepSeek', connected: true,
 			snapshot: snapshot({ provider: 'deepseek', billingMode: 'payg', balance: { value: 38.62, currency: 'CNY' } }),
-		}))).toBe('$(flame) DeepSeek ¥38.62');
+		}))).toBe('$(flame) DeepSeek · 余额 ¥38.62');
 
 		expect(buildStatusBarText(input({
 			providerName: 'GLM', connected: true,
 			snapshot: snapshot({ windows: [{ id: '5h', label: '5h', remainingPercent: 68 }, { id: 'week', label: '周', remainingPercent: 47 }] }),
-		}))).toBe('$(flame) GLM [████░░] 68%');
+		}))).toBe('$(flame) GLM · [████░░] 68%');
 
 		expect(buildStatusBarText(input({ providerName: 'MiMo', connected: true, snapshot: snapshot({ provider: 'mimo' }) }))).toBe('$(flame) MiMo');
 	});
@@ -63,15 +64,38 @@ describe('状态栏文本', () => {
 			providerName: 'Qwen', connected: true,
 			snapshot: snapshot({ provider: 'qwen', windows: [{ id: '5h', label: '5h', remainingPercent: 32 }] }),
 		}));
-		expect(text).toBe('$(flame) Qwen [██░░░░] 32%');
+		expect(text).toBe('$(flame) Qwen · [██░░░░] 32%');
 	});
 
-	it('套餐 + 余额并存：状态栏显示进度条，悬停同时给出余额', () => {
+	it('完整格式：厂商 · 本轮 tokens · 输出速度 · 等效成本 · 余额', () => {
+		const text = buildStatusBarText(input({
+			providerName: 'DeepSeek', connected: true,
+			snapshot: snapshot({ provider: 'deepseek', billingMode: 'payg', balance: { value: 29.38, currency: 'CNY' } }),
+			session: { turns: 14, promptTokens: 45_200, completionTokens: 42_300, totalTokens: 87_500, outputTps: 42.3, costCny: 0.53, unpriced: false },
+		}));
+		expect(text).toBe('$(flame) DeepSeek · 本轮 87.5K · 42 tok/s · ≈¥0.53 · 余额 ¥29.38');
+	});
+
+	it('会话段边界：微额显示 <0.01；全部无价时省略成本；无速度时省略速度', () => {
+		const tiny = buildStatusBarText(input({
+			providerName: 'GLM', connected: false,
+			session: { turns: 1, promptTokens: 800, completionTokens: 200, totalTokens: 1_000, outputTps: null, costCny: 0.003, unpriced: false },
+		}));
+		expect(tiny).toBe('$(flame) GLM · 本轮 1.0K · ≈¥<0.01');
+
+		const unpriced = buildStatusBarText(input({
+			providerName: 'GLM', connected: false,
+			session: { turns: 2, promptTokens: 2_000, completionTokens: 2_000, totalTokens: 4_000, outputTps: 12.6, costCny: 0, unpriced: true },
+		}));
+		expect(unpriced).toBe('$(flame) GLM · 本轮 4.0K · 13 tok/s'); // 无价格 → 省略成本段
+	});
+
+	it('套餐 + 余额并存：文本优先显示余额，悬停同时给出窗口与余额', () => {
 		const snap = snapshot({
 			windows: [{ id: '5h', label: '5h', remainingPercent: 68 }],
 			balance: { value: 42.17, currency: 'CNY' },
 		});
-		expect(buildStatusBarText(input({ providerName: 'GLM', connected: true, snapshot: snap }))).toBe('$(flame) GLM [████░░] 68%');
+		expect(buildStatusBarText(input({ providerName: 'GLM', connected: true, snapshot: snap }))).toBe('$(flame) GLM · 余额 ¥42.17');
 		const tip = buildStatusBarTooltip(input({ providerName: 'GLM', connected: true, snapshot: snap, updatedAt: NOW }));
 		expect(tip).toContain('5h  ['); // 窗口详情行
 		expect(tip).toContain('余额 ¥42.17'); // 余额行并存
@@ -101,6 +125,31 @@ describe('状态栏 tooltip', () => {
 		expect(tip).toContain('按官方按量 API 单价换算');
 		expect(tip).toContain('不代表套餐实际扣款');
 		expect(tip).toContain('更新于 22 分钟前');
+	});
+
+	it('tooltip 会话块：轮数/输入输出/输出速度/等效成本/口径句', () => {
+		const tip = buildStatusBarTooltip(input({
+			providerName: 'DeepSeek', currentModel: 'deepseek-chat', connected: true,
+			snapshot: snapshot({ provider: 'deepseek', billingMode: 'payg', balance: { value: 29.38, currency: 'CNY' } }),
+			session: { turns: 14, promptTokens: 45_200, completionTokens: 42_300, totalTokens: 87_500, outputTps: 42.3, costCny: 0.53, unpriced: false },
+		}));
+		expect(tip).toContain('当前会话（本地统计）');
+		expect(tip).toContain('14 轮 · 合计 87.5K（输入 45.2K / 输出 42.3K）');
+		expect(tip).toContain('输出速度 ≈ 42.3 tok/s');
+		expect(tip).toContain('等效 API 成本 ≈ ¥0.53');
+		expect(tip).toContain('不代表套餐实际扣款');
+	});
+
+	it('tooltip 会话块边界：无价时提示暂无价格；无会话时不出现该块', () => {
+		const unpricedTip = buildStatusBarTooltip(input({
+			providerName: 'GLM', connected: true,
+			session: { turns: 3, promptTokens: 3_000, completionTokens: 1_000, totalTokens: 4_000, outputTps: null, costCny: 0, unpriced: true },
+		}));
+		expect(unpricedTip).toContain('当前会话（本地统计）');
+		expect(unpricedTip).toContain('暂无价格数据');
+
+		const noSession = buildStatusBarTooltip(input({ providerName: 'GLM', connected: true }));
+		expect(noSession).not.toContain('当前会话（本地统计）');
 	});
 
 	it('其他账户：只列有快照的，显示 6→10 格条；当前账户不重复出现', () => {

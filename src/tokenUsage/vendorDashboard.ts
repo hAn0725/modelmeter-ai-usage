@@ -10,6 +10,7 @@ import { TokenUsageTracker } from './tokenUsageTracker';
 import { formatTokenCount, combineToCny, localDateKey } from './tokenCostEstimator';
 import { formatCnyUi, AMOUNT_FMT_JS } from './amountFormat';
 import { formatVendorName } from './vendorDisplay';
+import { getNonce, webviewCsp, webviewPlaceholder } from './webviewCsp';
 
 // ─── Color helpers ───────────────────────────────────────────────────────────
 
@@ -155,8 +156,12 @@ export class VendorDashboard {
 			VendorDashboard.viewType,
 			`Token Usage — ${formatVendorName(vendor)}`,
 			col ?? vscode.ViewColumn.One,
-			{ enableScripts: true, retainContextWhenHidden: true }
+			{ retainContextWhenHidden: true }
 		);
+		// CSP-first (see webviewCsp.ts): prime a CSP-carrying document before
+		// enabling scripts, otherwise VS Code logs a missing-CSP warning.
+		panel.webview.html = webviewPlaceholder();
+		panel.webview.options = { enableScripts: true };
 		VendorDashboard.currentPanel = new VendorDashboard(panel, tracker, vendor);
 		return VendorDashboard.currentPanel;
 	}
@@ -166,6 +171,7 @@ export class VendorDashboard {
 	}
 
     private async _render(): Promise<string> {
+		const nonce = getNonce();
 		const vendor = this._activeVendor;
 		const color = vendorColor(vendor);
         const s = await this._tracker.metricsService.getVendorViewSummary(vendor, this._days);
@@ -250,6 +256,7 @@ export class VendorDashboard {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="${webviewCsp(nonce)}">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>厂商：${formatVendorName(vendor)}</title>
 <style>${SHARED_CSS}</style>
@@ -321,8 +328,8 @@ export class VendorDashboard {
   ${ioChartEntries.length ? `<div class="chart-wrap" style="height:${Math.max(140, ioChartEntries.length * 26 + 60)}px"><canvas id="ioChart"></canvas></div>` : '<div class="empty">暂无 Token 数据。</div>'}
 </div>
 
-<script>${chartJsSource()}</script>
-<script>${AMOUNT_FMT_JS}
+<script nonce="${nonce}">${chartJsSource()}</script>
+<script nonce="${nonce}">${AMOUNT_FMT_JS}
 const D = ${chartData};
 var _modelEntries = D.modelEntries;
 const _vscode = acquireVsCodeApi();

@@ -104,10 +104,10 @@ export interface AccountViewState {
 
 // ─── Refresh policy constants ───────────────────────────────────────────────
 
-/** TTL for the provider the user is actively generating with. */
-export const CURRENT_PROVIDER_TTL_MS = 10 * 60 * 1000;
-/** TTL for connected providers that are not currently active. */
-export const OTHER_PROVIDER_TTL_MS = 30 * 60 * 1000;
+/** TTL for the provider the user is actively generating with (0.4.0: 5 min). */
+export const CURRENT_PROVIDER_TTL_MS = 5 * 60 * 1000;
+/** TTL for connected providers that are not currently active (0.4.0: 15 min). */
+export const OTHER_PROVIDER_TTL_MS = 15 * 60 * 1000;
 
 export function isSnapshotStale(updatedAt: number, now: number, isCurrent: boolean): boolean {
 	if (updatedAt <= 0) { return true; }

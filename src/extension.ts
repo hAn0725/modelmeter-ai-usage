@@ -77,15 +77,24 @@ export function activate(context: vscode.ExtensionContext) {
 	// first fetches are scheduled off the critical path below.
 	const accountCredentials = new AccountCredentialStore(context.secrets);
 	const currentAccountContext: { providerId: AccountProviderId | null; modelId: string | null } = { providerId: null, modelId: null };
-	let currentContextResolvedAt = 0;
-	const refreshCurrentContext = async (force = false): Promise<void> => {
-		if (!force && Date.now() - currentContextResolvedAt < 20_000) { return; }
-		currentContextResolvedAt = Date.now();
+	/**
+	 * Cheap local re-resolution of the provider + model behind the newest turn.
+	 * Never cached: a single indexed SQL over the local database, so model
+	 * switches propagate as soon as the tracker stores the new turn.
+	 */
+	const refreshCurrentContext = async (): Promise<boolean> => {
 		try {
 			const ids = await tokenTracker.metricsService.getRecentModelIds(30);
-			currentAccountContext.modelId = ids[0] ?? null;
-			currentAccountContext.providerId = resolveCurrentProvider(ids);
-		} catch { /* keep previous context */ }
+			const providerId = resolveCurrentProvider(ids);
+			const modelId = ids[0] ?? null;
+			const changed = providerId !== currentAccountContext.providerId || modelId !== currentAccountContext.modelId;
+			currentAccountContext.providerId = providerId;
+			currentAccountContext.modelId = modelId;
+			return changed;
+		} catch (err) {
+			logService.warn(`[Context] refresh failed: ${err instanceof Error ? err.message : String(err)}`);
+			return false;
+		}
 	};
 	const accountService = new AccountUsageService({
 		credentials: accountCredentials,
@@ -125,6 +134,19 @@ export function activate(context: vscode.ExtensionContext) {
 		accountService,
 		() => currentAccountContext,
 		localTotalsFor,
+		async () => {
+			const session = await tokenTracker.metricsService.getActiveSessionMetrics();
+			return session ? {
+				turns: session.turns,
+				promptTokens: session.promptTokens,
+				completionTokens: session.completionTokens,
+				totalTokens: session.totalTokens,
+				outputTps: session.outputTps,
+				costCny: session.costCny,
+				unpriced: session.unpricedCount > 0,
+			} : null;
+		},
+		logService.createSubLogger('StatusBar'),
 	);
 	tokenTracker.onDidUpdate(() => tokenStatusBar.update());
 	// Refresh dashboard when stored data changes (if dashboard is open)
@@ -143,8 +165,9 @@ export function activate(context: vscode.ExtensionContext) {
 			SessionDashboard.currentPanel.update();
 		}
 		sidebarProvider.notifyDataChanged();
-		// 0.3.0: re-resolve the current model (cheap, cached) and refresh only
-		// the current provider's account (TTL/single-flight guarded inside).
+		// Re-resolve the current model/provider (uncached, cheap) so a model
+		// switch shows up immediately, then refresh only that provider's
+		// account (TTL/single-flight guarded inside).
 		void refreshCurrentContext().then(async () => {
 			tokenStatusBar.update();
 			await accountService.ensureFresh(accountService.currentProvider());
@@ -170,14 +193,21 @@ export function activate(context: vscode.ExtensionContext) {
 		notifyViews: () => { tokenStatusBar.update(); sidebarProvider.notifyDataChanged(); },
 	});
 
-	// Off the critical path: resolve which provider the recent turns belong to,
-	// then ask for a TTL-guarded refresh of just that account.
-	setTimeout(() => {
-		void refreshCurrentContext(true).then(async () => {
-			tokenStatusBar.update();
-			await accountService.ensureFresh(accountService.currentProvider());
-		});
-	}, 900);
+	// First paint off the critical path: resolve the current provider as soon
+	// as the local database answers (retrying briefly while the initial import
+	// finishes), then repaint and ask for a TTL-guarded account refresh.
+	const kickContext = (attempt = 0): void => {
+		setTimeout(() => {
+			void refreshCurrentContext().then(async () => {
+				tokenStatusBar.update();
+				await accountService.ensureFresh(accountService.currentProvider());
+				if (currentAccountContext.providerId === null && attempt < 2) {
+					kickContext(attempt + 1);
+				}
+			});
+		}, attempt === 0 ? 50 : 900);
+	};
+	kickContext();
 
 	// ─── Token Usage Commands ───────────────────────────────────────────
 	context.subscriptions.push(

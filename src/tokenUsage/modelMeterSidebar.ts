@@ -109,6 +109,11 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 	/** Called by `modelMeter.showAccountSection` / status bar: expand one account. */
 	async focusAccount(providerId: AccountProviderId | null): Promise<void> {
 		this._expandedAccount = providerId;
+		if (!this._view) {
+			// First interaction may happen before the view ever resolved — asking
+		// VS Code to focus the view id makes it create/reveal the sidebar.
+			try { await vscode.commands.executeCommand('modelMeter.main.focus'); } catch { /* ignore */ }
+		}
 		if (this._view && !this._view.visible) {
 			try { this._view.show?.(true); } catch { /* older VS Code without WebviewView.show */ }
 		}
@@ -120,9 +125,10 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 
 	resolveWebviewView(view: vscode.WebviewView): void {
 		this._view = view;
-		view.webview.options = { enableScripts: true };
-
+		// CSP-first (see webviewCsp.ts): set the html carrying the CSP meta
+		// before enabling scripts, otherwise VS Code logs a missing-CSP warning.
 		view.webview.html = this._buildHtml(view.webview);
+		view.webview.options = { enableScripts: true };
 
 		view.webview.onDidReceiveMessage(msg => this._onMessage(msg));
 		view.onDidChangeVisibility(() => {
@@ -449,6 +455,7 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 	.linkbtn:hover { color: var(--vscode-textLink-activeForeground); text-decoration: underline; }
 
 	.btnrow { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+	.btnrow.top { margin: 0 0 10px; }
 	.btn {
 		flex: 1 1 auto; min-width: 64px;
 		padding: 4px 8px; cursor: pointer; border-radius: 4px;
@@ -479,6 +486,10 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 		<div class="updated" id="updated"></div>
 	</div>
 
+	<div class="btnrow top">
+		<button class="btn primary" data-msg="openOverview">打开用量总览</button>
+	</div>
+
 	<div class="hero" id="hero">
 		<div class="cell"><div class="v" id="h-tokens">–</div><div class="l">Token（近 7 天）</div></div>
 		<div class="cell"><div class="v" id="h-reqs">–</div><div class="l">请求</div></div>
@@ -498,7 +509,6 @@ export class ModelMeterSidebarProvider implements vscode.WebviewViewProvider, vs
 	<button class="linkbtn" id="more-sessions" hidden>查看全部会话 →</button>
 
 	<div class="btnrow">
-		<button class="btn primary" data-msg="openOverview">用量总览</button>
 		<button class="btn" data-msg="refresh">重新统计</button>
 		<button class="btn" data-msg="openHelp">帮助</button>
 	</div>

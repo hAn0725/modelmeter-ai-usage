@@ -10,6 +10,7 @@ import { formatTokenCount, combineToCny } from './tokenCostEstimator';
 import { formatCnyUi, AMOUNT_FMT_JS } from './amountFormat';
 import { aggregateSessionContext } from './contextBreakdown';
 import { formatVendorName } from './vendorDisplay';
+import { getNonce, webviewCsp, webviewPlaceholder } from './webviewCsp';
 
 // ─── Formatting helpers ─────────────────────────────────────────────────────
 
@@ -72,8 +73,12 @@ export class SessionDashboard {
 			SessionDashboard.viewType,
 			'会话详情',
 			col ?? vscode.ViewColumn.One,
-			{ enableScripts: true, retainContextWhenHidden: true },
+			{ retainContextWhenHidden: true },
 		);
+		// CSP-first (see webviewCsp.ts): prime a CSP-carrying document before
+		// enabling scripts, otherwise VS Code logs a missing-CSP warning.
+		panel.webview.html = webviewPlaceholder();
+		panel.webview.options = { enableScripts: true };
 		SessionDashboard.currentPanel = new SessionDashboard(panel, tracker, sessionId);
 		return SessionDashboard.currentPanel;
 	}
@@ -95,8 +100,9 @@ export class SessionDashboard {
 	}
 
 	private _renderEmpty(): string {
+		const nonce = getNonce();
 		return /* html */`<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>未找到会话</title>
+<html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${webviewCsp(nonce)}"><title>未找到会话</title>
 <style>${this._sharedCss()}</style></head>
 <body><h1>未找到会话</h1>
 <p class="subtitle">在数据库中未找到会话 <strong>${this._sessionId}</strong>。</p>
@@ -104,6 +110,7 @@ export class SessionDashboard {
 	}
 
 	private _renderDetail(detail: SessionDetail): string {
+		const nonce = getNonce();
 		const s = detail.session;
 		const turns = detail.turns;
 
@@ -165,6 +172,7 @@ export class SessionDashboard {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="${webviewCsp(nonce)}">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>会话详情 — ${s.session_id.substring(0, 8)}</title>
 <style>${this._sharedCss()}
@@ -275,7 +283,7 @@ export class SessionDashboard {
   </div>`}
 </div>
 
-<script>${AMOUNT_FMT_JS}
+<script nonce="${nonce}">${AMOUNT_FMT_JS}
 const turns = ${JSON.stringify(turnRows)};
 
 function formatToks(n) {

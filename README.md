@@ -11,6 +11,7 @@ AI 编程助手的定价、用量限制与授权模式不断变化，许多开�
 > - **用量统计** —— 按厂商与模型统计 GitHub Copilot 与第三方 BYOK 模型（DeepSeek、GLM、Qwen、MiMo 等）的 Token 消耗与等效 API 成本（¥）
 > - **会话历史与分析** —— 浏览历史聊天会话的逐轮 Token、耗时与工具调用详情
 > - **官方账户额度** —— 连接 DeepSeek / GLM / Qwen / 百炼 / MiMo 账户后，在状态栏与侧边栏查看官方余额与套餐额度（密钥仅存 VS Code 安全存储）
+> - **状态栏实时指示** —— 一行显示模型厂商 · 本轮对话 Tokens · 输出速度 · 等效成本 · 官方余额；点击直达侧边栏，切换模型后即时更新
 >
 > 📖 完整功能说明见 [`EXTENSION_README.md`](EXTENSION_README.md)，或直接从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hAn0725.modelmeter-ai-usage) 安装。
 >

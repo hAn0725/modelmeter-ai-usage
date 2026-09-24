@@ -36,10 +36,13 @@ const turn = {
 };
 
 function scriptsOf(html: string): string[] {
-	return [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+	return [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 }
 
 function assertScriptsCompile(name: string, html: string): void {
+	// 0.4.0: every generated page must carry its Content-Security-Policy meta
+	// (script tags use per-page nonces).
+	expect(html, `${name} 应包含 CSP meta`).toContain('Content-Security-Policy');
 	const scripts = scriptsOf(html);
 	expect(scripts.length, `${name} 应包含内联脚本`).toBeGreaterThan(0);
 	for (let i = 0; i < scripts.length; i++) {

@@ -28,6 +28,36 @@ All notable changes to this project will be documented in this file.
 - **Expanded `keywords`** with feature-intent terms (usage tracking, session history, session analysis, credits, dashboard, key management, etc.) and provider names (DeepSeek, Mistral, OpenRouter, Qwen, Kimi, GLM/Z.ai, MiniMax, MiMo, and more) so the extension surfaces for provider-specific searches like "deepseek byok" or "kimi usage tracking".
 - **Added `Visualization` category** alongside `AI`/`Other` to reflect the chart-based dashboards.
 
+## [0.4.0] — 2026-09-24
+
+### 📊 状态栏（体验升级）
+
+- **信息更全** — 一行显示：模型厂商 · 本轮对话 Tokens（本地统计）· Token 输出速度 · 等效 API 成本 · 官方余额；套餐账号无余额时回退显示额度进度条，任一段无数据时自动省略
+- **切换模型立即更新** — 去掉原先的 20 秒缓存；新轮次一写入本地库即刻重解析当前模型/厂商（本地索引查询，零网络请求）
+- **刷新永不丢失** — 修复“个别情况下状态栏停留在旧模型”的问题：刷新改为每次独立执行（移除单飞门闩，此前一次本地查询挂起会永久静默更新），单次查询 5 秒超时、失败写入日志；每 30 秒与每次窗口聚焦都会自动兜底重查
+- **响应更快** — 模型识别不再等待回复完成：只要请求发出（新轮次写入），数秒内状态栏即跟随切换；本地查询并行化，锁竞争场景下延迟减半
+- **更快出现** — 首次解析提前到激活后约 50ms 开始，并带短暂重试覆盖首次导入窗口
+- **点击即达** — 点击状态栏打开左侧边栏“账户与套餐”；即使侧边栏从未打开过也能一次唤起
+- **重绘周期 30 秒** — 仅重绘文本/悬停（相对时间），不发起任何请求
+- **悬停新增“当前会话”块** — 轮数、输入/输出 Tokens、输出速度、等效 API 成本与口径说明
+
+### 🔄 账户刷新策略
+
+- 当前使用账户：10 → **5 分钟** TTL；其他已连接账户：30 → **15 分钟**
+
+### 🧭 侧边栏布局
+
+- “打开用量总览”由底部按钮行移到**顶部主按钮**（底部保留 重新统计 / 帮助）
+
+### 🔒 安全加固
+
+- 全部 Webview（侧边栏 + 4 个面板）统一 **Content Security Policy**：内联脚本携带一次性 nonce，其余资源一律禁止（`default-src 'none'`）
+- 调整 Webview 初始化顺序（先注入内容再启用脚本），消除 VS Code “created a webview without a content security policy” 开发警告
+
+### 🧪 质量
+
+- 测试 182 → **187**（状态栏完整格式、会话段边界、tooltip 会话块、顶部按钮位置；Webview 语法门禁同步覆盖 CSP meta）
+
 ## [0.3.0] — 2026-09-23
 
 ### 🎯 官方账户额度（融合进既有侧边栏与状态栏）

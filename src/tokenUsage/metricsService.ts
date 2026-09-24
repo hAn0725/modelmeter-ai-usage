@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { MetricsDatabase, DashboardSummary, VendorAgg, ModelAgg, ModelDayTotal, ModelPromptBreakdown, SessionSummary, SessionDetail, SessionFilterOptions } from './metricsDatabase';
+import { MetricsDatabase, ActiveSessionMetrics, DashboardSummary, VendorAgg, ModelAgg, ModelDayTotal, ModelPromptBreakdown, SessionSummary, SessionDetail, SessionFilterOptions } from './metricsDatabase';
 import { parseSessionFile, computeFileHash, ParsedSession } from './sessionStoreImporter';
 import { estimateTurnCost } from './tokenCostEstimator';
 import { IMPORTER_VERSION } from './importerVersion';
@@ -685,6 +685,11 @@ export class MetricsService implements vscode.Disposable {
 	/** Recent model-ids (newest first, one row per model) for account-provider resolution. */
 	async getRecentModelIds(limit = 30): Promise<string[]> {
 		return this._db.getRecentModelIds(limit);
+	}
+
+	/** Aggregated metrics of the active (latest) conversation — status bar “本轮”. */
+	async getActiveSessionMetrics(): Promise<ActiveSessionMetrics | null> {
+		return this._db.getActiveSessionMetrics();
 	}
 
 	async getSessionFilterOptions(): Promise<SessionFilterOptions> {

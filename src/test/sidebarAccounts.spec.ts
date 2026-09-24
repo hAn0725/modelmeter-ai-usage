@@ -88,6 +88,13 @@ describe('侧边栏 HTML（账户与套餐）', () => {
 		expect(html).toContain('aria-label="管理账户连接"');
 	});
 
+	it('“打开用量总览”按钮置于顶部（hero 之前）且仅一处', () => {
+		const btnIdx = html.indexOf('data-msg="openOverview"');
+		expect(btnIdx).toBeGreaterThan(-1);
+		expect(btnIdx).toBeLessThan(html.indexOf('id="hero"'));
+		expect(html.indexOf('data-msg="openOverview"', btnIdx + 1)).toBe(-1); // 底部不再重复
+	});
+
 	it('渲染宿主端数据集合（accounts / accountDetail / accountExpanded）', () => {
 		expect(html).toContain('data.accounts || []');
 		expect(html).toContain('data.accountDetail');

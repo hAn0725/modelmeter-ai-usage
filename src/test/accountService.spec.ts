@@ -101,23 +101,27 @@ describe('AccountUsageService：惰性 + TTL', () => {
 
 		h.setCurrent('deepseek');
 		for (let i = 0; i < 5; i++) { await h.service.ensureFresh('deepseek'); }
-		expect(h.calls).toEqual(['deepseek']); // 10 分钟内不再请求
+		expect(h.calls).toEqual(['deepseek']); // 5 分钟 TTL 内不重复请求
 
-		h.advance(11 * MIN);
+		h.advance(4 * MIN);
+		await h.service.ensureFresh('deepseek');
+		expect(h.calls).toEqual(['deepseek']); // 4 分钟仍新鲜
+
+		h.advance(2 * MIN); // 累计 6 分钟 > 5 分钟 TTL
 		await h.service.ensureFresh('deepseek');
 		expect(h.calls).toEqual(['deepseek', 'deepseek']);
 	});
 
-	it('当前 Provider TTL 10 分钟 / 其他 30 分钟', async () => {
+	it('当前 Provider TTL 5 分钟 / 其他 15 分钟', async () => {
 		const h = makeHarness();
 		await h.service.connect('glm', 'key');
 		h.setCurrent('deepseek'); // glm 成为“其他”
 
-		h.advance(11 * MIN);
+		h.advance(6 * MIN);
 		await h.service.ensureFresh('glm');
-		expect(h.calls).toEqual(['glm']); // 其他账户 11 分钟还新鲜
+		expect(h.calls).toEqual(['glm']); // 其他账户 6 分钟还新鲜（< 15 分钟）
 
-		h.advance(20 * MIN); // 累计 31 分钟
+		h.advance(10 * MIN); // 累计 16 分钟 > 15 分钟
 		await h.service.ensureFresh('glm');
 		expect(h.calls).toEqual(['glm', 'glm']);
 	});

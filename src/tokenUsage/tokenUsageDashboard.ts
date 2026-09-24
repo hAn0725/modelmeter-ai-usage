@@ -10,6 +10,7 @@ import { TokenUsageTracker } from './tokenUsageTracker';
 import { formatTokenCount, formatCnyCompact, combineToCny, estimateEnergy, estimateCO2Grams, formatEnergy, formatCO2, localDateKey } from './tokenCostEstimator';
 import { formatCnyUi, AMOUNT_FMT_JS } from './amountFormat';
 import { formatVendorName } from './vendorDisplay';
+import { getNonce, webviewCsp, webviewPlaceholder } from './webviewCsp';
 
 // ─── Vendor color palette ─────────────────────────────────────────────────────
 
@@ -97,8 +98,12 @@ export class TokenUsageDashboard {
 			TokenUsageDashboard.viewType,
 			'Token Usage',
 			col ?? vscode.ViewColumn.One,
-			{ enableScripts: true, retainContextWhenHidden: true }
+			{ retainContextWhenHidden: true }
 		);
+		// CSP-first (see webviewCsp.ts): prime a CSP-carrying document before
+		// enabling scripts, otherwise VS Code logs a missing-CSP warning.
+		panel.webview.html = webviewPlaceholder();
+		panel.webview.options = { enableScripts: true };
 		TokenUsageDashboard.currentPanel = new TokenUsageDashboard(panel, tracker);
 		return TokenUsageDashboard.currentPanel;
 	}
@@ -112,6 +117,7 @@ export class TokenUsageDashboard {
 	// ─── HTML Generation ───────────────────────────────────────────────
 
 	private async _renderAsync(): Promise<string> {
+		const nonce = getNonce();
 		// Pull from SQLite DB (fast aggregation query)
 		const s = await this._tracker.metricsService.getDashboardSummary(this._days);
 
@@ -197,6 +203,7 @@ export class TokenUsageDashboard {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="${webviewCsp(nonce)}">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Token 用量总览</title>
 <style>
@@ -357,8 +364,8 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
   </div>
 </div>
 
-<script>${chartJsSource()}</script>
-<script>${AMOUNT_FMT_JS}
+<script nonce="${nonce}">${chartJsSource()}</script>
+<script nonce="${nonce}">${AMOUNT_FMT_JS}
 const D = ${chartData};
 console.log('[Dashboard] Data loaded:',{monthLabels:D.monthLabels.length,vendorNames:D.vendorNames.length});
 const VNAME={'mimo':'MiMo','xiaomi':'MiMo','deepseek':'DeepSeek','glm':'GLM','qwen':'Qwen','copilot':'GitHub Copilot','unknown':'未知'};

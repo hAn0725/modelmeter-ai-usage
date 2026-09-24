@@ -79,6 +79,22 @@ export interface ProcessedFileRow {
 	importer_version: number;
 }
 
+/** Aggregated metrics of the active (latest) conversation — local data only. */
+export interface ActiveSessionMetrics {
+	sessionId: string;
+	turns: number;
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+	costUsd: number;
+	costCny: number;
+	/** Output speed (completion tokens per second); null when timing is missing. */
+	outputTps: number | null;
+	/** Turns of this session whose model has no price (cost is a lower bound). */
+	unpricedCount: number;
+	lastTurnAt: number;
+}
+
 export interface DashboardSummary {
 	today: DayTotal;
 	thisWeek: DayTotal[];
@@ -888,13 +904,77 @@ export class MetricsDatabase {
 	/**
 	 * Model-ids of recent turns, newest first (one row per model). Used by the
 	 * account module to resolve which provider the user is currently using.
+	 *
+	 * In-flight turns are included on purpose (no `model_state = 1` filter):
+	 * the model is known from the moment a request starts, so switching models
+	 * reflects within seconds instead of waiting for the reply to finish.
 	 */
 	async getRecentModelIds(limit = 30): Promise<string[]> {
+		await this._ready;
 		const rows = await this._all<{ model_id: string }>(
-			`SELECT model_id, MAX(timestamp) AS ts FROM turns WHERE model_state = 1 GROUP BY model_id ORDER BY ts DESC LIMIT ?`,
+			`SELECT model_id, MAX(timestamp) AS ts FROM turns WHERE model_id IS NOT NULL AND model_id <> '' GROUP BY model_id ORDER BY ts DESC LIMIT ?`,
 			[Math.max(1, Math.min(200, Math.floor(limit)))]
 		);
 		return rows.map(r => r.model_id);
+	}
+
+	/**
+	 * Aggregated metrics of the active (latest) conversation — powers the
+	 * status bar's “本轮” segment (tokens / output speed / equivalent cost).
+	 */
+	async getActiveSessionMetrics(): Promise<ActiveSessionMetrics | null> {
+		await this._ready;
+		const latest = await this._get<{ session_id: string }>(
+			`SELECT session_id FROM turns WHERE ${this._completeFilter()} ORDER BY timestamp DESC LIMIT 1`
+		);
+		if (!latest) { return null; }
+		const agg = await this._get<{
+			turns: number;
+			promptTokens: number;
+			completionTokens: number;
+			totalTokens: number;
+			costUsd: number;
+			costCny: number;
+			totalElapsedMs: number;
+			firstProgressMs: number;
+			unpricedCount: number;
+			lastTurnAt: number;
+		}>(
+			`SELECT
+				COUNT(*) AS turns,
+				SUM(prompt_tokens) AS promptTokens,
+				SUM(completion_tokens) AS completionTokens,
+				SUM(prompt_tokens + completion_tokens) AS totalTokens,
+				COALESCE(SUM(estimated_cost_usd), 0) AS costUsd,
+				COALESCE(SUM(estimated_cost_cny), 0) AS costCny,
+				COALESCE(SUM(total_elapsed_ms), 0) AS totalElapsedMs,
+				COALESCE(SUM(first_progress_ms), 0) AS firstProgressMs,
+				SUM(CASE WHEN estimated_cost_usd IS NULL AND estimated_cost_cny IS NULL THEN 1 ELSE 0 END) AS unpricedCount,
+				MAX(timestamp) AS lastTurnAt
+			FROM turns WHERE session_id = ? AND ${this._completeFilter()}`,
+			[latest.session_id]
+		);
+		if (!agg || !agg.turns) { return null; }
+		// Output speed: completion tokens over the *generation* window
+		// (total time minus the first-token wait), falling back to the full
+		// elapsed time when the breakdown is unavailable.
+		const outputMs = Math.max(0, agg.totalElapsedMs - agg.firstProgressMs);
+		const denomMs = outputMs > 0 ? outputMs : agg.totalElapsedMs;
+		const outputTps = denomMs > 0 && agg.completionTokens > 0
+			? agg.completionTokens / (denomMs / 1000)
+			: null;
+		return {
+			sessionId: latest.session_id,
+			turns: agg.turns,
+			promptTokens: agg.promptTokens,
+			completionTokens: agg.completionTokens,
+			totalTokens: agg.totalTokens,
+			costUsd: agg.costUsd,
+			costCny: agg.costCny,
+			outputTps,
+			unpricedCount: agg.unpricedCount,
+			lastTurnAt: agg.lastTurnAt,
+		};
 	}
 
 	async getSessionDetail(sessionId: string): Promise<SessionDetail | null> {

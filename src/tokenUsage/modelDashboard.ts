@@ -9,6 +9,7 @@ import * as path from 'path';
 import { TokenUsageTracker } from './tokenUsageTracker';
 import { formatTokenCount, combineToCny, localDateKey } from './tokenCostEstimator';
 import { formatCnyUi, AMOUNT_FMT_JS } from './amountFormat';
+import { getNonce, webviewCsp, webviewPlaceholder } from './webviewCsp';
 
 // ─── Vendor color palette ─────────────────────────────────────────────────────
 
@@ -167,8 +168,12 @@ export class ModelDashboard {
 			ModelDashboard.viewType,
 			title,
 			col ?? vscode.ViewColumn.One,
-			{ enableScripts: true, retainContextWhenHidden: true }
+			{ retainContextWhenHidden: true }
 		);
+		// CSP-first (see webviewCsp.ts): prime a CSP-carrying document before
+		// enabling scripts, otherwise VS Code logs a missing-CSP warning.
+		panel.webview.html = webviewPlaceholder();
+		panel.webview.options = { enableScripts: true };
 		ModelDashboard.currentPanel = new ModelDashboard(panel, tracker, vendor, model);
 		return ModelDashboard.currentPanel;
 	}
@@ -178,6 +183,7 @@ export class ModelDashboard {
 	}
 
     private async _render(): Promise<string> {
+		const nonce = getNonce();
 		const vendor = this._activeVendor;
 		const modelId = this._activeModel;
         const s = await this._tracker.metricsService.getModelViewSummary(vendor, modelId, this._days);
@@ -291,6 +297,7 @@ export class ModelDashboard {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="${webviewCsp(nonce)}">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>${modelId ? modelId : '模型用量'}</title>
 <style>${SHARED_CSS}</style>
@@ -373,8 +380,8 @@ ${!modelId ? `<div class="sec">
   </div>` : '<div class="empty">当前选择暂无输入上下文构成数据。</div>'}
 </div>
 
-<script>${chartJsSource()}</script>
-<script>${AMOUNT_FMT_JS}
+<script nonce="${nonce}">${chartJsSource()}</script>
+<script nonce="${nonce}">${AMOUNT_FMT_JS}
 const D = ${chartData};
 var PROMPT_COLORS = ${JSON.stringify(PROMPT_CATEGORY_COLORS)};
 var _modelEntries = D.modelEntries;
